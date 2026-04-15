@@ -1,11 +1,13 @@
 import streamlit as st
 import pandas as pd
 import os
+from datetime import datetime, date
 
 # Configuração da página
-st.set_page_config(page_title="Controle de Policiamento - PMBA", layout="wide")
+st.set_page_config(page_title="Calendário Operacional - PMBA", layout="wide")
 
-st.title("🛡️ Sistema de Prevenção de Sobreposição - PMBA")
+st.title("📅 Calendário de Policiamento - Extremo Sul")
+st.info("Planejamento Antecipado e Prevenção de Sobreposição")
 
 # --- ORGANIZAÇÃO DOS MUNICÍPIOS ---
 prioritarios = ["Teixeira de Freitas", "Porto Seguro", "Eunápolis"]
@@ -18,79 +20,89 @@ todos_municipios = [
 restante_alfabetico = sorted([m for m in todos_municipios if m not in prioritarios])
 municipios = prioritarios + restante_alfabetico
 
-# --- LÓGICA DE PERSISTÊNCIA ROBUSTA ---
-DB_FILE = "status_policiamento.csv"
+# --- LÓGICA DE PERSISTÊNCIA (BANCO DE DADOS EM CALENDÁRIO) ---
+DB_FILE = "escala_policiamento.csv"
 
-def carregar_dados_do_arquivo():
-    """Lê o arquivo CSV e retorna um dicionário com o status de cada cidade."""
-    dados_atuais = {m: "Livre" for m in municipios}
+def carregar_escala():
     if os.path.exists(DB_FILE):
-        try:
-            df_lido = pd.read_csv(DB_FILE, index_col=0)
-            # Converte o CSV de volta para dicionário atualizando o padrão
-            for m, ocup in df_lido.set_index('Município')['Ocupação'].to_dict().items():
-                if m in dados_atuais:
-                    dados_atuais[m] = ocup
-        except:
-            pass
-    return dados_atuais
+        return pd.read_csv(DB_FILE)
+    return pd.DataFrame(columns=['Data', 'Município', 'Unidade'])
 
-def salvar_dados_no_arquivo(dados):
-    """Salva o dicionário completo no arquivo CSV."""
-    df_save = pd.DataFrame(list(dados.items()), columns=['Município', 'Ocupação'])
-    df_save.to_csv(DB_FILE)
+def salvar_escala(df):
+    df.to_csv(DB_FILE, index=False)
 
-# Inicialização da sessão
-if 'status_policiamento' not in st.session_state:
-    st.session_state.status_policiamento = carregar_dados_do_arquivo()
+# --- INTERFACE LATERAL (CADASTRO PELO CHEFE) ---
+st.sidebar.header("⚙️ Gestão da Escala")
+senha = st.sidebar.text_input("Senha do Gestor", type="password")
 
-# --- INTERFACE LATERAL ---
-st.sidebar.header("Registrar Movimentação")
-unidade = st.sidebar.selectbox("Sua Unidade:", ["Selecione", "CIPE-MA", "CIPT-ES"])
-cidade_alvo = st.sidebar.selectbox("Município de Destino:", municipios)
+# Apenas quem tem a senha (ex: "pmba123") pode cadastrar
+if senha == "123": # Altere sua senha aqui
+    st.sidebar.subheader("Agendar Policiamento")
+    data_agendada = st.sidebar.date_input("Data do Policiamento", date.today())
+    unidade_agendada = st.sidebar.selectbox("Unidade:", ["CIPE-MA", "CIPT-ES"])
+    cidades_agendadas = st.sidebar.multiselect("Selecionar Municípios:", municipios)
 
-# BOTÃO ENTRADA
-if st.sidebar.button("Confirmar Entrada"):
-    if unidade == "Selecione":
-        st.sidebar.error("Selecione sua unidade primeiro!")
-    else:
-        # 1. Busca o que está gravado no arquivo AGORA (sincronização)
-        dados_do_disco = carregar_dados_do_arquivo()
-        status_atual = dados_do_disco.get(cidade_alvo, "Livre")
+    if st.sidebar.button("Salvar Escala"):
+        df_escala = carregar_escala()
+        data_str = data_agendada.strftime("%Y-%m-%d")
         
-        if status_atual == "Livre":
-            # 2. Atualiza apenas a cidade selecionada mantendo as outras
-            dados_do_disco[cidade_alvo] = unidade
-            salvar_dados_no_arquivo(dados_do_disco)
-            st.session_state.status_policiamento = dados_do_disco
-            st.sidebar.success(f"Entrada confirmada em {cidade_alvo}")
+        novos_registros = []
+        conflitos = []
+
+        for cidade in cidades_agendadas:
+            # Verifica se já existe ALGUÉM nessa cidade nessa data
+            conflito = df_escala[(df_escala['Data'] == data_str) & (df_escala['Município'] == cidade)]
+            
+            if not conflito.empty:
+                unid_ocupante = conflito.iloc[0]['Unidade']
+                conflitos.append(f"{cidade} ({unid_ocupante})")
+            else:
+                novos_registros.append({'Data': data_str, 'Município': cidade, 'Unidade': unidade_agendada})
+        
+        if conflitos:
+            st.sidebar.error(f"Erro! Sobreposição em: {', '.join(conflitos)}")
+        
+        if novos_registros:
+            df_escala = pd.concat([df_escala, pd.DataFrame(novos_registros)], ignore_index=True)
+            salvar_escala(df_escala)
+            st.sidebar.success("Escala atualizada com sucesso!")
             st.rerun()
-        elif status_atual == unidade:
-            st.sidebar.warning(f"Você já está registrado em {cidade_alvo}.")
-        else:
-            st.sidebar.error(f"BLOQUEIO: A {status_atual} já está em {cidade_alvo}!")
 
-# BOTÃO SAÍDA
-if st.sidebar.button("Registrar Saída/Liberação"):
-    dados_do_disco = carregar_dados_do_arquivo()
-    dados_do_disco[cidade_alvo] = "Livre"
-    salvar_dados_no_arquivo(dados_do_disco)
-    st.session_state.status_policiamento = dados_do_disco
-    st.sidebar.info(f"{cidade_alvo} liberada.")
-    st.rerun()
+    if st.sidebar.button("Limpar Escala do Dia"):
+        df_escala = carregar_escala()
+        data_str = data_agendada.strftime("%Y-%m-%d")
+        df_escala = df_escala[df_escala['Data'] != data_str]
+        salvar_escala(df_escala)
+        st.sidebar.warning(f"Escala de {data_str} removida.")
+        st.rerun()
+else:
+    st.sidebar.warning("Insira a senha para cadastrar escalas.")
 
-# --- EXIBIÇÃO DO DASHBOARD ---
-# Sempre lê do estado da sessão que foi sincronizado com o disco
-df_view = pd.DataFrame([{"Município": m, "Ocupação": st.session_state.status_policiamento.get(m, "Livre")} for m in municipios])
+# --- VISUALIZAÇÃO (PARA TODOS AS UNIDADES) ---
+st.write("### 🔍 Consultar Planejamento")
+data_consulta = st.date_input("Selecione o dia para verificar o policiamento:", date.today())
+data_consulta_str = data_consulta.strftime("%Y-%m-%d")
+
+df_total = carregar_escala()
+df_dia = df_total[df_total['Data'] == data_consulta_str]
+
+# Criar a tabela de visualização para o dia selecionado
+tabela_visual = pd.DataFrame([{"Município": m, "Ocupação": "Livre"} for m in municipios])
+
+for index, row in df_dia.iterrows():
+    tabela_visual.loc[tabela_visual['Município'] == row['Município'], 'Ocupação'] = row['Unidade']
 
 def color_status(val):
     if val == 'CIPE-MA': return 'background-color: #add8e6; color: black'
     if val == 'CIPT-ES': return 'background-color: #90ee90; color: black'
     return 'background-color: white; color: black'
 
-st.write("### Painel de Ocupação em Tempo Real")
-st.dataframe(df_view.style.map(color_status, subset=['Ocupação']), height=750, use_container_width=True)
+st.write(f"**Escala para o dia: {data_consulta.strftime('%d/%m/%Y')}**")
+st.dataframe(tabela_visual.style.map(color_status, subset=['Ocupação']), height=700, use_container_width=True)
 
-if st.button("🔄 Sincronizar/Atualizar"):
-    st.session_state.status_policiamento = carregar_dados_do_arquivo()
-    st.rerun()
+# --- HISTÓRICO / RELATÓRIO ---
+with st.expander("📊 Ver Relatório Completo (Todos os Dias)"):
+    if not df_total.empty:
+        st.dataframe(df_total.sort_values(by='Data', ascending=False), use_container_width=True)
+    else:
+        st.write("Nenhum dado agendado ainda.")
