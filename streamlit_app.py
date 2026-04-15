@@ -53,7 +53,7 @@ with col1:
         if val == 'Unidade 2': color = '#90ee90' # Verde claro
         return f'background-color: {color}'
 
-    st.dataframe(df.style.applymap(color_status, subset=['Ocupação']), height=750, use_container_width=True)
+    st.dataframe(df.style.map(color_status, subset=['Ocupação']), height=750, use_container_width=True)
 
 with col2:
     st.write("### Resumo Operacional")
