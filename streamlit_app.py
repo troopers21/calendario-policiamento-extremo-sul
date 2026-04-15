@@ -1,66 +1,81 @@
 import streamlit as st
 import pandas as pd
+import os
 
 # Configuração da página
-st.set_page_config(page_title="Controle de Policiamento - Extremo Sul", layout="wide")
+st.set_page_config(page_title="Controle de Policiamento - PMBA", layout="wide")
 
 st.title("🛡️ Sistema de Prevenção de Sobreposição - PMBA")
-st.subheader("Coordenação de Policiamento em 21 Municípios")
 
-# Lista dos 21 municípios (Exemplo do Extremo Sul)
-municipios = [
+# --- ORGANIZAÇÃO DOS MUNICÍPIOS ---
+prioritarios = ["Teixeira de Freitas", "Porto Seguro", "Eunápolis"]
+
+todos_municipios = [
     "Teixeira de Freitas", "Itanhém", "Medeiros Neto", "Vereda", "Lajedão", 
     "Ibirapuã", "Caravelas", "Posto da Mata", "Nova Viçosa", "Mucuri", 
     "Prado", "Alcobaça", "Itamaraju", "Jucuruçu", "Guaratinga", 
     "Itabela", "Porto Seguro", "Eunápolis", "Santa Cruz Cabrália", "Belmonte", "Itagimirim"
 ]
 
-# Simulação de Banco de Dados (Em produção, usar st.session_state ou DB real)
-if 'status_policiamento' not in st.session_state:
-    st.session_state.status_policiamento = {m: "Livre" for m in municipios}
+restante_alfabetico = sorted([m for m in todos_municipios if m not in prioritarios])
+municipios = prioritarios + restante_alfabetico
 
-# Sidebar para Registro de Entrada
+# --- LÓGICA DE PERSISTÊNCIA ---
+DB_FILE = "status_policiamento.csv"
+
+def carregar_dados():
+    if os.path.exists(DB_FILE):
+        try:
+            return pd.read_csv(DB_FILE, index_col=0)['Ocupação'].to_dict()
+        except:
+            return {m: "Livre" for m in municipios}
+    return {m: "Livre" for m in municipios}
+
+def salvar_dados(dados):
+    df_save = pd.DataFrame(list(dados.items()), columns=['Município', 'Ocupação'])
+    df_save.to_csv(DB_FILE)
+
+if 'status_policiamento' not in st.session_state:
+    st.session_state.status_policiamento = carregar_dados()
+
+# --- INTERFACE ---
 st.sidebar.header("Registrar Movimentação")
 unidade = st.sidebar.selectbox("Sua Unidade:", ["Selecione", "CIPE-MA", "CIPT-ES"])
 cidade_alvo = st.sidebar.selectbox("Município de Destino:", municipios)
 
 if st.sidebar.button("Confirmar Entrada"):
-    status_atual = st.session_state.status_policiamento[cidade_alvo]
+    st.session_state.status_policiamento = carregar_dados()
+    status_atual = st.session_state.status_policiamento.get(cidade_alvo, "Livre")
     
     if status_atual == "Livre":
         st.session_state.status_policiamento[cidade_alvo] = unidade
+        salvar_dados(st.session_state.status_policiamento)
         st.sidebar.success(f"Entrada confirmada em {cidade_alvo}")
+        st.rerun()
     elif status_atual == unidade:
         st.sidebar.warning(f"Você já está registrado em {cidade_alvo}.")
     else:
-        st.sidebar.error(f"BLOQUEIO: A {status_atual} já está operando em {cidade_alvo}!")
+        st.sidebar.error(f"BLOQUEIO: A {status_atual} já está em {cidade_alvo}!")
 
 if st.sidebar.button("Registrar Saída/Liberação"):
     st.session_state.status_policiamento[cidade_alvo] = "Livre"
-    st.sidebar.info(f"{cidade_alvo} agora está livre.")
+    salvar_dados(st.session_state.status_policiamento)
+    st.sidebar.info(f"{cidade_alvo} liberada.")
+    st.rerun()
 
-# Exibição do Dashboard
-col1, col2 = st.columns([2, 1])
+# Exibição
+status_dict = st.session_state.status_policiamento
+df = pd.DataFrame([{"Município": m, "Ocupação": status_dict.get(m, "Livre")} for m in municipios])
 
-with col1:
-    st.write("### Mapa de Ocupação em Tempo Real")
-    # Criando uma tabela visual para simular o mapa
-    df = pd.DataFrame(list(st.session_state.status_policiamento.items()), columns=['Município', 'Ocupação'])
-    
-    def color_status(val):
-        color = '#ffffff' # Branco para Livre
-        if val == 'CIPE-MA': color = '#add8e6' # Azul claro
-        if val == 'CIPT-ES': color = '#90ee90' # Verde claro
-        return f'background-color: {color}'
+def color_status(val):
+    color = '#ffffff'
+    if val == 'CIPE-MA': color = '#add8e6' # Azul claro
+    if val == 'CIPT-ES': color = '#90ee90' # Verde claro
+    return f'background-color: {color}'
 
-    st.dataframe(df.style.map(color_status, subset=['Ocupação']), height=750, use_container_width=True)
+st.write("### Mapa de Ocupação Atualizado")
+st.dataframe(df.style.map(color_status, subset=['Ocupação']), height=750, use_container_width=True)
 
-with col2:
-    st.write("### Resumo Operacional")
-    u1_count = list(st.session_state.status_policiamento.values()).count("CIPE-MA")
-    u2_count = list(st.session_state.status_policiamento.values()).count("CIPT-ES")
-    livres = list(st.session_state.status_policiamento.values()).count("Livre")
-    
-    st.metric("Cidades com CIPE-MA", u1_count)
-    st.metric("Cidades com CIPT-ES", u2_count)
-    st.metric("Cidades Disponíveis", livres)
+if st.button("🔄 Atualizar Mapa"):
+    st.session_state.status_policiamento = carregar_dados()
+    st.rerun()
