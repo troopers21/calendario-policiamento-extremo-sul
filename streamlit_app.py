@@ -21,7 +21,7 @@ if 'status_policiamento' not in st.session_state:
 
 # Sidebar para Registro de Entrada
 st.sidebar.header("Registrar Movimentação")
-unidade = st.sidebar.selectbox("Sua Unidade:", ["Selecione", "Unidade 1", "Unidade 2"])
+unidade = st.sidebar.selectbox("Sua Unidade:", ["Selecione", "CIPE-MA", "CIPT-ES"])
 cidade_alvo = st.sidebar.selectbox("Município de Destino:", municipios)
 
 if st.sidebar.button("Confirmar Entrada"):
@@ -49,18 +49,18 @@ with col1:
     
     def color_status(val):
         color = '#ffffff' # Branco para Livre
-        if val == 'Unidade 1': color = '#add8e6' # Azul claro
-        if val == 'Unidade 2': color = '#90ee90' # Verde claro
+        if val == 'CIPE-MA': color = '#add8e6' # Azul claro
+        if val == 'CIPT-ES': color = '#90ee90' # Verde claro
         return f'background-color: {color}'
 
     st.dataframe(df.style.map(color_status, subset=['Ocupação']), height=750, use_container_width=True)
 
 with col2:
     st.write("### Resumo Operacional")
-    u1_count = list(st.session_state.status_policiamento.values()).count("Unidade 1")
-    u2_count = list(st.session_state.status_policiamento.values()).count("Unidade 2")
+    u1_count = list(st.session_state.status_policiamento.values()).count("CIPE-MA")
+    u2_count = list(st.session_state.status_policiamento.values()).count("CIPT-ES")
     livres = list(st.session_state.status_policiamento.values()).count("Livre")
     
-    st.metric("Cidades com Unidade 1", u1_count)
-    st.metric("Cidades com Unidade 2", u2_count)
+    st.metric("Cidades com CIPE-MA", u1_count)
+    st.metric("Cidades com CIPT-ES", u2_count)
     st.metric("Cidades Disponíveis", livres)
