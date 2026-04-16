@@ -12,21 +12,20 @@ st.set_page_config(page_title="Calendário Operacional - PMBA", layout="wide")
 
 st.title("📅 Calendário de Policiamento - Extremo Sul")
 
-# --- DEFINIÇÃO DAS REGIÕES ---
+# --- DEFINIÇÃO DAS REGIÕES (LISTAS OFICIAIS) ---
 regioes = {
     "Costa do Descobrimento": [
-        "Porto Seguro", "Eunápolis", "Belmonte", "Guaratinga", 
-        "Itabela", "Itagimirim", "Itapebi", "Santa Cruz Cabrália", 
-        "Itamaraju", "Jucuruçu"
+        "Porto Seguro", "Eunápolis", "Santa Cruz Cabrália", 
+        "Belmonte", "Itapebi", "Itagimirim", "Guaratinga", "Itabela"
     ],
     "Costa das Baleias": [
-        "Teixeira de Freitas", "Alcobaça", "Caravelas", "Ibirapuã", 
-        "Itanhém", "Lajedão", "Medeiros Neto", "Mucuri", 
-        "Nova Viçosa", "Prado", "Vereda", "Posto da Mata"
+        "Teixeira de Freitas", "Itamaraju", "Jucuruçu", "Medeiros Neto", 
+        "Itanhém", "Lajedão", "Vereda", "Ibirapuã", "Alcobaça", 
+        "Prado", "Caravelas", "Mucuri", "Nova Viçosa"
     ]
 }
 
-# Lista para o menu de cadastro (ordem alfabética geral)
+# Lista para o menu de cadastro (Ordem Alfabética Geral para busca rápida)
 todas_cidades = sorted([c for lista in regioes.values() for c in lista])
 
 # --- FUNÇÕES DE BANCO DE DADOS ---
@@ -59,17 +58,17 @@ if senha == "123":
 
     if st.sidebar.button("Salvar no Banco de Dados"):
         if not missao_ag:
-            st.sidebar.error("Descreva a missão.")
+            st.sidebar.error("Por favor, descreva a missão.")
         else:
             salvar_no_db(data_ag, cidade_ag, unid_ag, missao_ag)
-            st.sidebar.success(f"Salvo: {cidade_ag}")
+            st.sidebar.success(f"Escala salva: {cidade_ag}")
             st.rerun()
 else:
-    st.sidebar.warning("Insira a senha para gerenciar.")
+    st.sidebar.warning("Insira a senha para gerenciar a escala.")
 
 # --- VISUALIZAÇÃO PRINCIPAL ---
-st.write("### 🔍 Consulta por Data")
-data_con = st.date_input("Selecione o dia:", datetime.date.today())
+st.write("### 🔍 Consulta de Policiamento por Região")
+data_con = st.date_input("Selecione o dia para visualizar:", datetime.date.today())
 df_total = carregar_dados_db()
 
 def color_status(val):
@@ -77,17 +76,17 @@ def color_status(val):
     if val == 'CIPT-ES': return 'background-color: #90ee90; color: black'
     return 'background-color: white; color: black'
 
-# --- RENDERIZAÇÃO POR GRUPOS ---
+# --- RENDERIZAÇÃO DAS TABELAS AGRUPADAS ---
 for regiao, cidades in regioes.items():
-    st.markdown(f"#### 📍 {regiao}") # Título da Região acima da tabela
+    st.markdown(f"#### 📍 {regiao}") 
     
-    # Criar a tabela apenas para as cidades desta região
+    # Monta a tabela base para a região
     rows = []
     for cid in cidades:
         rows.append({"Município": cid, "Ocupação": "Livre", "Missão": "-"})
     df_regiao = pd.DataFrame(rows)
 
-    # Preencher com dados do dia se houver
+    # Preenche com os dados salvos no Supabase para a data selecionada
     if not df_total.empty:
         df_dia = df_total[df_total['data'] == data_con.strftime("%Y-%m-%d")]
         for _, row in df_dia.iterrows():
@@ -95,15 +94,18 @@ for regiao, cidades in regioes.items():
                 df_regiao.loc[df_regiao['Município'] == row['municipio'], 'Ocupação'] = row['unidade']
                 df_regiao.loc[df_regiao['Município'] == row['municipio'], 'Missão'] = row['missao']
 
-    # Exibir a tabela da região
     st.dataframe(
         df_regiao.style.map(color_status, subset=['Ocupação']), 
         use_container_width=True, 
         hide_index=True
     )
-    st.write("") # Espaço entre as tabelas
+    st.write("") 
 
 # --- HISTÓRICO ---
-with st.expander("📊 Histórico Completo"):
+with st.expander("📊 Ver Histórico Geral de Missões"):
     if not df_total.empty:
-        st.dataframe(df_total.sort_values(by='data', ascending=False), use_container_width=True, hide_index=True)
+        st.dataframe(
+            df_total.sort_values(by='data', ascending=False), 
+            use_container_width=True, 
+            hide_index=True
+        )
