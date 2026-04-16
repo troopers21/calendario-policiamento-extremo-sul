@@ -84,3 +84,30 @@ if not df_total.empty:
     st.dataframe(tabela_visual.style.map(color_status, subset=['Ocupação']), height=600, use_container_width=True, hide_index=True)
 else:
     st.write("O banco de dados está vazio.")
+
+# --- HISTÓRICO / RELATÓRIO DETALHADO (Final do arquivo) ---
+st.markdown("---") # Linha divisória para organizar
+with st.expander("📊 Ver Histórico Completo e Detalhes das Missões"):
+    # Busca todos os dados do banco para o relatório
+    df_historico = carregar_dados_db()
+    
+    if not df_historico.empty:
+        # Renomeia as colunas para ficar mais apresentável no relatório
+        df_relatorio = df_historico.rename(columns={
+            'data': 'Data',
+            'municipio': 'Município',
+            'unidade': 'Unidade',
+            'missao': 'Detalhes da Missão'
+        })
+        
+        # Ordena pela data mais recente primeiro
+        df_relatorio = df_relatorio.sort_values(by='Data', ascending=False)
+        
+        # Exibe a tabela completa
+        st.dataframe(
+            df_relatorio[['Data', 'Município', 'Unidade', 'Detalhes da Missão']], 
+            use_container_width=True, 
+            hide_index=True
+        )
+    else:
+        st.write("Nenhum registro encontrado no banco de dados.")
