@@ -175,7 +175,7 @@ with menu[2]:
                 st.rerun()
     else:
         st.button("🔒 Bloquear Gestão", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
-        t_cad, t_del, t_hist = st.tabs(["📝 Agendar", "🗑️ Apagar", "📊 Histórico Completo"])
+        t_cad, t_del, t_hist, t_cpr = st.tabs(["📝 Agendar", "🗑️ Apagar", "📊 Histórico Completo", "👮 Comandante CPR-ES"])
         
         with t_cad:
             c1, c2 = st.columns(2)
@@ -216,3 +216,26 @@ with menu[2]:
                 df_h['Dia da Semana'] = df_h['data'].apply(obter_dia_semana)
                 df_h['Cumprida?'] = df_h['cumprido'].map({True: "Sim", False: "Não"}).fillna("-")
                 st.dataframe(df_h[['Data', 'Dia da Semana', 'municipio', 'unidade', 'viatura', 'comandante_nome', 'Cumprida?', 'hora_entrada', 'hora_saida', 'relatorio_resumido']], use_container_width=True, hide_index=True)
+
+        with t_cpr:
+            st.subheader("Painel de Controle Executivo - CPR-ES")
+            df_cpr_data = carregar_dados_db()
+            if not df_cpr_data.empty:
+                # Ordenação cronológica (mais recentes primeiro)
+                df_cpr_data = df_cpr_data.sort_values(by='data', ascending=False)
+                
+                # Formatação para o Comandante
+                df_cpr_data['Data'] = df_cpr_data['data'].apply(formatar_data_br)
+                df_cpr_data['Dia da Semana'] = df_cpr_data['data'].apply(obter_dia_semana)
+                df_cpr_data['Status'] = df_cpr_data['cumprido'].map({True: "✅ CUMPRIDO", False: "⚠️ AGENDADO"}).fillna("⚠️ AGENDADO")
+                
+                # Seleção de colunas estratégicas
+                colunas_cpr = ['Data', 'Dia da Semana', 'municipio', 'unidade', 'Status', 'hora_entrada', 'hora_saida', 'comandante_nome', 'viatura']
+                df_cpr_view = df_cpr_data[colunas_cpr]
+                
+                # Renomear para visualização oficial
+                df_cpr_view.columns = ['Data', 'Dia da Semana', 'Cidade', 'Unidade', 'Situação', 'Início', 'Fim', 'Comandante', 'Vtr']
+                
+                st.dataframe(df_cpr_view, use_container_width=True, hide_index=True)
+            else:
+                st.write("Sem registros ativos no sistema.")
