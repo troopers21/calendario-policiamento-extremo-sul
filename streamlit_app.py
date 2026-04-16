@@ -103,7 +103,7 @@ if st.sidebar.button("Sair / Logoff"):
 
 menu = st.tabs(["📋 Consulta", "✅ Cumprimento", "⚙️ Gestão"])
 
-# --- ABA 0: CONSULTA (SOMENTE ATIVOS/CUMPRIDOS) ---
+# --- ABA 0: CONSULTA ---
 with menu[0]:
     data_con = st.date_input("Selecione a Data", datetime.date.today())
     df_total = carregar_dados_db()
@@ -114,33 +114,19 @@ with menu[0]:
     }
 
     existem_missoes = False
-
     for regiao, cidades in regioes.items():
         rows = []
         if not df_total.empty:
-            # Filtra apenas registros do dia e que pertençam às cidades da região atual
             df_dia = df_total[(df_total['data'] == data_con.strftime("%Y-%m-%d")) & (df_total['municipio'].isin(cidades))]
-            
             if not df_dia.empty:
                 existem_missoes = True
                 st.markdown(f"#### 📍 {regiao}")
-                
                 for _, r in df_dia.iterrows():
                     status_txt = "✅ Cumprido" if r.get('cumprido') is True else "⚠️ Escalado"
-                    rows.append({
-                        "Município": r['municipio'],
-                        "Unidade": r['unidade'],
-                        "Entrada": r['hora_entrada'],
-                        "Saída": r['hora_saida'],
-                        "Status": status_txt
-                    })
-                
+                    rows.append({"Município": r['municipio'], "Unidade": r['unidade'], "Entrada": r['hora_entrada'], "Saída": r['hora_saida'], "Status": status_txt})
                 df_reg_view = pd.DataFrame(rows)
-                
-                # Ajuste de altura para mostrar tudo sem scroll
                 altura_calc = (len(rows) + 1) * 35 + 3
                 st.dataframe(df_reg_view, use_container_width=True, hide_index=True, height=altura_calc)
-
     if not existem_missoes:
         st.info(f"Não há policiamento escalado para o dia {data_con.strftime('%d/%m/%Y')}.")
 
@@ -163,28 +149,31 @@ with menu[1]:
                 h_e = c1.selectbox("Hora Entrada", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
                 h_s = c2.selectbox("Hora Saída", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
                 confirmar = st.checkbox("Sim", value=bool(d.get('cumprido')))
-                rel = st.text_area("Resumo", value=str(d.get('relatorio_resumido') or ""))
+                rel = st.text_area("Resumo da Missão", value=str(d.get('relatorio_resumido') or ""))
                 if st.form_submit_button("Salvar Registro"):
                     if atualizar_cumprimento(d['id'], h_e, h_s, rel, confirmar, n, m): st.rerun()
 
-# --- ABA 2: GESTÃO ---
+# --- ABA 2: GESTÃO (COM O HISTÓRICO DENTRO) ---
 with menu[2]:
     if not st.session_state.gestao_liberada:
+        st.warning("🔒 Área Restrita à Chave de Comando.")
         ch = st.text_input("Insira a Chave:", type="password")
         if st.button("Liberar Acesso"):
             if ch == CHAVE_GESTAO:
                 st.session_state.gestao_liberada = True
                 st.rerun()
     else:
-        st.button("🔒 Bloquear", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
-        t1, t2 = st.tabs(["📝 Agendar", "🗑️ Apagar"])
-        with t1:
+        st.button("🔒 Bloquear Gestão", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
+        t_cad, t_del, t_hist = st.tabs(["📝 Agendar", "🗑️ Apagar", "📊 Histórico Completo"])
+        
+        with t_cad:
             c1, c2 = st.columns(2)
             dt = c1.date_input("Data da Missão", datetime.date.today())
             un = c1.selectbox("Unidade", ["CIPE-MA", "CIPT-ES"])
-            mu = c2.selectbox("Município", sorted([cid for reg in regioes.values() for cid in reg]))
-            h_ent_ag = c1.selectbox("Entrada Prevista", lista_horas)
-            h_sai_ag = c2.selectbox("Saída Prevista", lista_horas)
+            todas_cids = sorted(["Porto Seguro", "Eunápolis", "Santa Cruz Cabrália", "Belmonte", "Itapebi", "Itagimirim", "Guaratinga", "Itabela", "Teixeira de Freitas", "Itamaraju", "Jucuruçu", "Medeiros Neto", "Itanhém", "Lajedão", "Vereda", "Ibirapuã", "Alcobaça", "Prado", "Caravelas", "Mucuri", "Nova Viçosa"])
+            mu = c2.selectbox("Município", todas_cids)
+            h_e_ag = c1.selectbox("Entrada Prevista", lista_horas)
+            h_s_ag = c2.selectbox("Saída Prevista", lista_horas)
             ms = c2.text_area("Missão")
             if st.button("Salvar Agendamento"):
                 df_ex = carregar_dados_db()
@@ -193,13 +182,14 @@ with menu[2]:
                     mesma_cidade = df_ex[(df_ex['data'] == dt.strftime("%Y-%m-%d")) & (df_ex['municipio'] == mu)]
                     for _, row in mesma_cidade.iterrows():
                         ex_in = int(row['hora_entrada'].split(':')[0]); ex_fi = int(row['hora_saida'].split(':')[0])
-                        no_in = int(h_ent_ag.split(':')[0]); no_fi = int(h_sai_ag.split(':')[0])
+                        no_in = int(h_e_ag.split(':')[0]); no_fi = int(h_s_ag.split(':')[0])
                         if (no_in < ex_fi) and (no_fi > ex_in):
                             conflito = True
                             st.error(f"❌ Conflito em {mu}."); break
                 if not conflito:
-                    salvar_no_db(dt, mu, un, ms, h_ent_ag, h_sai_ag); st.rerun()
-        with t2:
+                    salvar_no_db(dt, mu, un, ms, h_e_ag, h_s_ag); st.rerun()
+
+        with t_del:
             df_del = carregar_dados_db().sort_values(by='data', ascending=False)
             if not df_del.empty:
                 df_del['data_br'] = df_del['data'].apply(formatar_data_br)
@@ -207,13 +197,11 @@ with menu[2]:
                 id_a = df_del[(df_del['data_br'] + " | " + df_del['municipio']) == v]['id'].values[0]
                 if st.button("Confirmar Exclusão"): apagar_no_db(id_a); st.rerun()
 
-# --- 8. HISTÓRICO ---
-st.markdown("---")
-with st.expander("📊 Histórico"):
-    df_h = carregar_dados_db()
-    if not df_h.empty:
-        df_h = df_h.sort_values(by='data', ascending=False)
-        df_h['Data'] = df_h['data'].apply(formatar_data_br)
-        df_h['Dia da Semana'] = df_h['data'].apply(obter_dia_semana)
-        df_h['Cumprida?'] = df_h['cumprido'].map({True: "Sim", False: "Não"}).fillna("-")
-        st.dataframe(df_h[['Data', 'Dia da Semana', 'municipio', 'unidade', 'comandante_nome', 'Cumprida?', 'hora_entrada', 'hora_saida', 'relatorio_resumido']], use_container_width=True, hide_index=True)
+        with t_hist:
+            df_h = carregar_dados_db()
+            if not df_h.empty:
+                df_h = df_h.sort_values(by='data', ascending=False)
+                df_h['Data'] = df_h['data'].apply(formatar_data_br)
+                df_h['Dia da Semana'] = df_h['data'].apply(obter_dia_semana)
+                df_h['Cumprida?'] = df_h['cumprido'].map({True: "Sim", False: "Não"}).fillna("-")
+                st.dataframe(df_h[['Data', 'Dia da Semana', 'municipio', 'unidade', 'comandante_nome', 'Cumprida?', 'hora_entrada', 'hora_saida', 'relatorio_resumido']], use_container_width=True, hide_index=True)
