@@ -6,6 +6,7 @@ import datetime
 # --- 1. CONFIGURAÇÕES DE ACESSO ---
 USUARIO_CORRETO = "admin"
 SENHA_CORRETA = "pmba2026"
+CHAVE_GESTAO = "comando2026"  # Nova senha para a aba de Gestão
 
 # --- 2. CONFIGURAÇÃO DO BANCO DE DADOS (SUPABASE) ---
 url: str = st.secrets["SUPABASE_URL"]
@@ -51,9 +52,11 @@ def color_status(val):
     if val == 'CIPT-ES': return 'background-color: #90ee90; color: black'
     return 'background-color: white; color: black'
 
-# --- 5. LÓGICA DE AUTENTICAÇÃO ---
+# --- 5. LÓGICA DE AUTENTICAÇÃO INICIAL ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
+if "gestao_liberada" not in st.session_state:
+    st.session_state.gestao_liberada = False
 
 if not st.session_state.autenticado:
     st.title("🔐 Acesso Restrito - Extremo Sul")
@@ -73,41 +76,15 @@ if not st.session_state.autenticado:
 # --- 6. INTERFACE PRINCIPAL ---
 if st.sidebar.button("Sair / Logoff"):
     st.session_state.autenticado = False
+    st.session_state.gestao_liberada = False
     st.rerun()
 
 st.title("📅 Calendário de Policiamento - Extremo Sul")
 
 menu = st.tabs(["📋 Consulta de Escala", "⚙️ Gestão/Agendamento"])
 
-with menu[1]: # Aba de Gestão
-    st.subheader("Agendar Nova Missão")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        data_ag = st.date_input("Data da Missão", datetime.date.today())
-        
-        dias_semana = {
-            0: "Segunda-feira", 1: "Terça-feira", 2: "Quarta-feira",
-            3: "Quinta-feira", 4: "Sexta-feira", 5: "Sábado", 6: "Domingo"
-        }
-        dia_nome = dias_semana[data_ag.weekday()]
-        st.write(f"📅 **Dia selecionado:** {dia_nome}")
-        
-        unid_ag = st.selectbox("Unidade Responsável", ["CIPE-MA", "CIPT-ES"])
-    
-    with col2:
-        cidade_ag = st.selectbox("Município Alvo", todas_cidades)
-        missao_ag = st.text_area("Descrição Detalhada da Missão", placeholder="Objetivo da missão...")
-
-    if st.button("Confirmar e Salvar no Banco de Dados"):
-        if not missao_ag:
-            st.error("Erro: A descrição da missão é obrigatória.")
-        else:
-            salvar_no_db(data_ag, cidade_ag, unid_ag, missao_ag)
-            st.success(f"Missão em {cidade_ag} salva com sucesso!")
-            st.rerun()
-
-with menu[0]: # Aba de Consulta
+# --- ABA DE CONSULTA ---
+with menu[0]:
     st.subheader("Visualização por Região")
     col_data_con, _ = st.columns([1, 2])
     with col_data_con:
@@ -118,7 +95,6 @@ with menu[0]: # Aba de Consulta
 
     for regiao, cidades in regioes.items():
         st.markdown(f"#### 📍 {regiao}")
-        
         rows = []
         for cid in cidades:
             rows.append({"Município": cid, "Ocupação": "Livre", "Missão": "-"})
@@ -138,15 +114,47 @@ with menu[0]: # Aba de Consulta
         )
         st.write("")
 
+# --- ABA DE GESTÃO (COM SENHA ADICIONAL) ---
+with menu[1]:
+    if not st.session_state.gestao_liberada:
+        st.warning("🔒 Esta área exige a Chave de Comando.")
+        chave_input = st.text_input("Insira a Chave de Gestão:", type="password")
+        if st.button("Liberar Acesso"):
+            if chave_input == CHAVE_GESTAO:
+                st.session_state.gestao_liberada = True
+                st.rerun()
+            else:
+                st.error("Chave incorreta.")
+    else:
+        if st.button("🔒 Bloquear Gestão"):
+            st.session_state.gestao_liberada = False
+            st.rerun()
+            
+        st.subheader("Agendar Nova Missão")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            data_ag = st.date_input("Data da Missão", datetime.date.today())
+            dias_semana = {0: "Segunda-feira", 1: "Terça-feira", 2: "Quarta-feira", 3: "Quinta-feira", 4: "Sexta-feira", 5: "Sábado", 6: "Domingo"}
+            st.write(f"📅 **Dia selecionado:** {dias_semana[data_ag.weekday()]}")
+            unid_ag = st.selectbox("Unidade Responsável", ["CIPE-MA", "CIPT-ES"])
+        
+        with col2:
+            cidade_ag = st.selectbox("Município Alvo", todas_cidades)
+            missao_ag = st.text_area("Descrição Detalhada da Missão", placeholder="Objetivo da missão...")
+
+        if st.button("Confirmar e Salvar no Banco de Dados"):
+            if not missao_ag:
+                st.error("Erro: A descrição da missão é obrigatória.")
+            else:
+                salvar_no_db(data_ag, cidade_ag, unid_ag, missao_ag)
+                st.success(f"Missão em {cidade_ag} salva com sucesso!")
+                st.rerun()
+
 # --- 7. HISTÓRICO ---
 st.markdown("---")
 with st.expander("📊 Ver Histórico Completo de Missões"):
     df_hist = carregar_dados_db()
     if not df_hist.empty:
-        df_hist = df_hist.rename(columns={
-            'data': 'Data', 'municipio': 'Município', 
-            'unidade': 'Unidade', 'missao': 'Missão'
-        })
+        df_hist = df_hist.rename(columns={'data': 'Data', 'municipio': 'Município', 'unidade': 'Unidade', 'missao': 'Missão'})
         st.dataframe(df_hist.sort_values(by='Data', ascending=False), use_container_width=True, hide_index=True)
-    else:
-        st.write("Nenhum dado registrado.")
