@@ -8,25 +8,21 @@ USUARIO_CORRETO = "admin"
 SENHA_CORRETA = "pmba2026"
 CHAVE_GESTAO = "comando2026"
 
-# Inicialização segura do Session State
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "gestao_liberada" not in st.session_state:
     st.session_state.gestao_liberada = False
 
-# Conexão Supabase
 url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
 st.set_page_config(page_title="SISPOSIÇÃO - PMBA - CPR-ES", layout="wide", page_icon="🛡️")
 
-# --- 2. CABEÇALHO INSTITUCIONAL (OPÇÃO 1: LOGO AMPLIADO) ---
-# Ajustamos as colunas laterais para serem pequenas (0.5) e a central ser grande (2.0)
+# --- 2. CABEÇALHO INSTITUCIONAL ---
 col_logo1, col_logo2, col_logo3 = st.columns([0.5, 2.0, 0.5])
 with col_logo2:
     try:
-        # use_container_width=True faz a imagem ocupar todo o espaço da coluna central (66% da tela)
         st.image("logo_unidade.jpeg", use_container_width=True) 
     except:
         pass
@@ -116,7 +112,7 @@ if st.sidebar.button("Terminar Sessão"):
     st.session_state.gestao_liberada = False
     st.rerun()
 
-menu = st.tabs(["📋 Consulta de Escala", "✅ Cumprimento de Missão", "⚙️ Gestão SISPOSIÇÃO"])
+menu = st.tabs(["📋 Consulta de Escala", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão SISPOSIÇÃO"])
 
 # --- ABA 0: CONSULTA ---
 with menu[0]:
@@ -170,11 +166,70 @@ with menu[1]:
                 rel = st.text_area("Resumo da Missão (Ex.: Reintegração de Posse, Revista em Presídio, etc)", value=str(d.get('relatorio_resumido') or ""))
                 if st.form_submit_button("Submeter para o SISPOSIÇÃO"):
                     if atualizar_cumprimento(d['id'], h_e, h_s, rel, confirmar, n, m, vtr): 
-                        st.success("Registo atualizado com sucesso no sistema!")
+                        st.success("Registo atualizado com sucesso!")
                         st.rerun()
 
-# --- ABA 2: GESTÃO ---
+# --- ABA 2: ESTATÍSTICAS ---
 with menu[2]:
+    st.subheader("📊 Análise de Dados Estratégicos")
+    df_est = carregar_dados_db()
+    
+    if not df_est.empty:
+        # 1. Preparação dos dados temporais
+        df_est['data_dt'] = pd.to_datetime(df_est['data'])
+        df_est['Mês/Ano'] = df_est['data_dt'].dt.strftime('%m/%Y')
+        total_geral = len(df_est)
+
+        # 2. Definição de Territórios
+        territorios = {
+            "Costa do Descobrimento": ["Porto Seguro", "Eunápolis", "Santa Cruz Cabrália", "Belmonte", "Itapebi", "Itagimirim", "Guaratinga", "Itabela"],
+            "Costa das Baleias": ["Teixeira de Freitas", "Itamaraju", "Jucuruçu", "Medeiros Neto", "Itanhém", "Lajedão", "Vereda", "Ibirapuã", "Alcobaça", "Prado", "Caravelas", "Mucuri", "Nova Viçosa"]
+        }
+        mapeamento = {cidade: terr for terr, cidades in territorios.items() for cidade in cidades}
+        df_est['Território'] = df_est['municipio'].map(mapeamento)
+
+        # --- VISUALIZAÇÃO MENSAL ---
+        st.markdown("### 📅 Evolução Mensal de Missões")
+        df_mensal = df_est['Mês/Ano'].value_counts().reset_index()
+        df_mensal.columns = ['Mês/Ano', 'Qtd. Missões']
+        df_mensal['Porcentagem'] = (df_mensal['Qtd. Missões'] / total_geral * 100).map("{:.1f}%".format)
+        
+        c_m1, c_m2 = st.columns([1, 2])
+        with c_m1:
+            st.dataframe(df_mensal, use_container_width=True, hide_index=True)
+        with c_m2:
+            st.line_chart(df_est['Mês/Ano'].value_counts())
+
+        st.markdown("---")
+
+        # --- VISUALIZAÇÃO POR TERRITÓRIO ---
+        st.markdown("### 🌎 Distribuição por Território")
+        df_terr = df_est['Território'].value_counts().reset_index()
+        df_terr.columns = ['Território', 'Qtd. Missões']
+        df_terr['Porcentagem'] = (df_terr['Qtd. Missões'] / total_geral * 100).map("{:.1f}%".format)
+        
+        c_t1, c_t2 = st.columns([1, 1])
+        with c_t1:
+            st.dataframe(df_terr, use_container_width=True, hide_index=True)
+        with c_t2:
+            st.bar_chart(df_est['Território'].value_counts())
+
+        st.markdown("---")
+
+        # --- VISUALIZAÇÃO POR CIDADE ---
+        st.markdown("### 🏙️ Ranking de Cidades")
+        df_cid = df_est['municipio'].value_counts().reset_index()
+        df_cid.columns = ['Cidade', 'Qtd. Missões']
+        df_cid['Porcentagem'] = (df_cid['Qtd. Missões'] / total_geral * 100).map("{:.1f}%".format)
+        
+        st.dataframe(df_cid, use_container_width=True, hide_index=True)
+        st.bar_chart(df_est['municipio'].value_counts(), horizontal=True)
+
+    else:
+        st.info("Aguardando registros no banco de dados para gerar estatísticas.")
+
+# --- ABA 3: GESTÃO ---
+with menu[3]:
     if not st.session_state.gestao_liberada:
         st.warning("🔒 Área Restrita à Chave de Comando CPR-ES.")
         ch = st.text_input("Chave de Segurança:", type="password")
@@ -183,7 +238,7 @@ with menu[2]:
                 st.session_state.gestao_liberada = True
                 st.rerun()
     else:
-        st.button("🔒 Bloquear Painel de Gestão", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
+        st.button("🔒 Bloquear Painel", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
         t_acoes, t_cpr = st.tabs(["📝 Escalonamento de Missões", "👮 Comandante CPR-ES"])
         
         with t_acoes:
@@ -198,25 +253,21 @@ with menu[2]:
                 h_s_ag = st.selectbox("Saída Prevista:", lista_horas, key="gest_hs")
                 ms = st.text_area("Missão / Objetivo:", key="gest_ms")
                 
-                if st.button("Confirmar Agendamento no SISPOSIÇÃO"):
+                if st.button("Confirmar Agendamento"):
                     conflito = False 
                     df_ex = carregar_dados_db()
-                    
                     if not df_ex.empty:
                         mesma_cidade = df_ex[(df_ex['data'] == dt.strftime("%Y-%m-%d")) & (df_ex['municipio'] == mu)]
                         for _, row in mesma_cidade.iterrows():
-                            ex_in = int(row['hora_entrada'].split(':')[0])
-                            ex_fi = int(row['hora_saida'].split(':')[0])
-                            no_in = int(h_e_ag.split(':')[0])
-                            no_fi = int(h_s_ag.split(':')[0])
+                            ex_in = int(row['hora_entrada'].split(':')[0]); ex_fi = int(row['hora_saida'].split(':')[0])
+                            no_in = int(h_e_ag.split(':')[0]); no_fi = int(h_s_ag.split(':')[0])
                             if (no_in < ex_fi) and (no_fi > ex_in):
                                 conflito = True
-                                st.error(f"❌ BLOQUEIO SISPOSIÇÃO: {mu} já possui missão agendada entre {row['hora_entrada']} e {row['hora_saida']}.")
-                                break
+                                st.error(f"❌ CONFLITO: {mu} já possui missão neste horário."); break
                     
                     if not conflito:
                         if int(h_s_ag.split(':')[0]) <= int(h_e_ag.split(':')[0]):
-                            st.error("Erro: O horário de saída deve ser posterior ao de entrada.")
+                            st.error("Horário de saída inválido.")
                         else:
                             salvar_no_db(dt, mu, un, ms, h_e_ag, h_s_ag)
                             st.rerun()
@@ -231,7 +282,7 @@ with menu[2]:
                     if st.button("Eliminar Permanentemente"): apagar_no_db(id_a); st.rerun()
             
             st.markdown("---")
-            st.subheader("📊 Histórico Completo SISPOSIÇÃO")
+            st.subheader("📊 Histórico Completo")
             df_h = carregar_dados_db()
             if not df_h.empty:
                 df_h = df_h.sort_values(by='data', ascending=False)
@@ -248,5 +299,5 @@ with menu[2]:
                 df_cpr_data['Data'] = df_cpr_data['data'].apply(formatar_data_br)
                 df_cpr_data['Estado'] = df_cpr_data['cumprido'].map({True: "✅ CUMPRIDA", False: "⚠️ AGENDADA"}).fillna("⚠️ AGENDADA")
                 df_cpr_view = df_cpr_data[['Data', 'municipio', 'unidade', 'Estado', 'hora_entrada', 'hora_saida', 'comandante_nome', 'relatorio_resumido']]
-                df_cpr_view.columns = ['Data', 'Cidade', 'Unidade', 'Situação Operacional', 'Início', 'Fim', 'Comandante', 'Resumo/Relatório']
+                df_cpr_view.columns = ['Data', 'Cidade', 'Unidade', 'Situação', 'Início', 'Fim', 'Comandante', 'Relatório']
                 st.dataframe(df_cpr_view, use_container_width=True, hide_index=True)
