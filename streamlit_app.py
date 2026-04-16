@@ -173,14 +173,11 @@ with menu[2]:
                 st.session_state.gestao_liberada = True
                 st.rerun()
     else:
-        # BOTÕES DE AÇÃO SUPERIORES
         st.button("🔒 Bloquear Gestão", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
-        
-        t_acoes, t_cpr = st.tabs(["📝 Ações de Escala (Agendar/Apagar)", "👮 Comandante CPR-ES"])
+        t_acoes, t_cpr = st.tabs(["📝 Ações de Escala", "👮 Comandante CPR-ES"])
         
         with t_acoes:
             col_cad, col_del = st.columns(2)
-            
             with col_cad:
                 st.subheader("Agendar Missão")
                 dt = st.date_input("Data da Missão", datetime.date.today(), key="gest_dt")
@@ -213,7 +210,6 @@ with menu[2]:
                     id_a = df_del[(df_del['data_br'] + " | " + df_del['municipio']) == v]['id'].values[0]
                     if st.button("Excluir Registro Selecionado"): apagar_no_db(id_a); st.rerun()
             
-            # --- HISTÓRICO COMPLETO EXIBIDO AQUI NO RODAPÉ DA ABA AÇÕES ---
             st.markdown("---")
             st.subheader("📊 Histórico Completo de Missões")
             df_h = carregar_dados_db()
@@ -230,8 +226,10 @@ with menu[2]:
             if not df_cpr_data.empty:
                 df_cpr_data = df_cpr_data.sort_values(by='data', ascending=False)
                 df_cpr_data['Data'] = df_cpr_data['data'].apply(formatar_data_br)
-                df_cpr_data['Dia da Semana'] = df_cpr_data['data'].apply(obter_dia_semana)
                 df_cpr_data['Situação'] = df_cpr_data['cumprido'].map({True: "✅ CUMPRIDO", False: "⚠️ AGENDADO"}).fillna("⚠️ AGENDADO")
-                df_cpr_view = df_cpr_data[['Data', 'Dia da Semana', 'municipio', 'unidade', 'Situação', 'hora_entrada', 'hora_saida', 'comandante_nome', 'viatura']]
-                df_cpr_view.columns = ['Data', 'Dia da Semana', 'Cidade', 'Unidade', 'Situação', 'Início', 'Fim', 'Comandante', 'Vtr']
+                
+                # Seleção de colunas: Trocado 'viatura' por 'relatorio_resumido'
+                df_cpr_view = df_cpr_data[['Data', 'municipio', 'unidade', 'Situação', 'hora_entrada', 'hora_saida', 'comandante_nome', 'relatorio_resumido']]
+                df_cpr_view.columns = ['Data', 'Cidade', 'Unidade', 'Situação', 'Início', 'Fim', 'Comandante', 'Relatório da Missão']
+                
                 st.dataframe(df_cpr_view, use_container_width=True, hide_index=True)
