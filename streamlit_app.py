@@ -3,12 +3,49 @@ import pandas as pd
 from supabase import create_client, Client
 import datetime
 
+# --- CONFIGURAÇÃO DE SEGURANÇA ---
+USUARIO_CORRETO = "admin"  # Altere para o usuário desejado
+SENHA_CORRETA = "pmba2026" # Altere para a senha desejada
+
 # --- CONFIGURAÇÃO SUPABASE ---
 url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
-st.set_page_config(page_title="Calendário Operacional - PMBA", layout="wide")
+st.set_page_config(page_title="Sistema de Policiamento - PMBA", layout="wide")
+
+# --- FUNÇÃO DE LOGIN ---
+def verificar_login():
+    if "autenticado" not in st.session_state:
+        st.session_state.autenticado = False
+
+    if not st.session_state.autenticado:
+        st.title("🔐 Acesso Restrito - Extremo Sul")
+        with st.form("login_form"):
+            user = st.text_input("Usuário")
+            password = st.text_input("Senha", type="password")
+            entrar = st.form_submit_button("Entrar")
+            
+            if entrar:
+                if user == USUARIO_CORRETO and password == SENHA_CORRETA:
+                    st.session_state.autenticado = True
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha incorretos.")
+        return False
+    return True
+
+# --- INÍCIO DO PROGRAMA ---
+if verificar_login():
+    # Botão de Logout na lateral
+    if st.sidebar.button("Sair do Sistema"):
+        st.session_state.autenticado = False
+        st.rerun()
+
+    st.title("📅 Calendário de Policiamento - Extremo Sul")
+
+    # [TODO O RESTANTE DO CÓDIGO DE REGIÕES E BANCO DE DADOS ENTRA AQUI]
+    # ... (Copie o código das regiões, funções do DB e visualização aqui dentro)
 
 st.title("📅 Calendário de Policiamento - Extremo Sul")
 
