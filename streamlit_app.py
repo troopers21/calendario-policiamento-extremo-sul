@@ -8,22 +8,26 @@ USUARIO_CORRETO = "admin"
 SENHA_CORRETA = "pmba2026"
 CHAVE_GESTAO = "comando2026"
 
+# Inicialização segura do Session State
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "gestao_liberada" not in st.session_state:
     st.session_state.gestao_liberada = False
 
+# Conexão Supabase
 url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
 st.set_page_config(page_title="SISPOSIÇÃO - PMBA - CPR-ES", layout="wide", page_icon="🛡️")
 
-# --- 2. CABEÇALHO INSTITUCIONAL ---
-col_logo1, col_logo2, col_logo3 = st.columns([2, 1, 2])
+# --- 2. CABEÇALHO INSTITUCIONAL (OPÇÃO 1: LOGO AMPLIADO) ---
+# Ajustamos as colunas laterais para serem pequenas (0.5) e a central ser grande (2.0)
+col_logo1, col_logo2, col_logo3 = st.columns([0.5, 2.0, 0.5])
 with col_logo2:
     try:
-        st.image("logo_unidade.jpeg", width=700) 
+        # use_container_width=True faz a imagem ocupar todo o espaço da coluna central (66% da tela)
+        st.image("logo_unidade.jpeg", use_container_width=True) 
     except:
         pass
 
@@ -160,7 +164,7 @@ with menu[1]:
                 
                 h_c1, h_c2, h_c3 = st.columns([1, 1, 2])
                 h_e = h_c1.selectbox("Entrada Real", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
-                h_s = h_c2.selectbox("Saída Real", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
+                h_s = h_c2.selectbox("Hora Saída", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
                 confirmar = h_c3.checkbox("Confirmar cumprimento total da missão", value=bool(d.get('cumprido')))
                 
                 rel = st.text_area("Resumo da Missão (Ex.: Reintegração de Posse, Revista em Presídio, etc)", value=str(d.get('relatorio_resumido') or ""))
@@ -205,7 +209,6 @@ with menu[2]:
                             ex_fi = int(row['hora_saida'].split(':')[0])
                             no_in = int(h_e_ag.split(':')[0])
                             no_fi = int(h_s_ag.split(':')[0])
-                            # Lógica de Sobreposição
                             if (no_in < ex_fi) and (no_fi > ex_in):
                                 conflito = True
                                 st.error(f"❌ BLOQUEIO SISPOSIÇÃO: {mu} já possui missão agendada entre {row['hora_entrada']} e {row['hora_saida']}.")
