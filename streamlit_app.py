@@ -24,7 +24,7 @@ with col_logo2:
     # Verifique se o nome do arquivo está correto no seu GitHub
     # Se a imagem estiver na pasta raiz, basta o nome dela:
     try:
-        st.image("logo_unidade.jpeg", width=1000) 
+        st.image("logo_unidade.jpeg", width=1500) 
     except:
         st.warning("Arquivo 'logo_unidade.png' não encontrado no repositório.")
 
