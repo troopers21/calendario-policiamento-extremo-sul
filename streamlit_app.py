@@ -6,9 +6,10 @@ import datetime
 # --- 1. CONFIGURAÇÕES DE ACESSO ---
 USUARIO_CORRETO = "admin"
 SENHA_CORRETA = "pmba2026"
-CHAVE_GESTAO = "comando2026"  # Nova senha para a aba de Gestão
+CHAVE_GESTAO = "comando2026"
 
 # --- 2. CONFIGURAÇÃO DO BANCO DE DADOS (SUPABASE) ---
+# Certifique-se de que SUPABASE_URL e SUPABASE_KEY estão nos Secrets do Streamlit
 url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
@@ -30,13 +31,13 @@ regioes = {
 
 todas_cidades = sorted([c for lista in regioes.values() for c in lista])
 
-# --- 4. FUNÇÕES DE SUPORTE ---
+# --- 4. FUNÇÕES DE SUPORTE (CRUD) ---
 def carregar_dados_db():
     try:
         response = supabase.table("escala_operacional").select("*").execute()
         return pd.DataFrame(response.data)
-    except:
-        return pd.DataFrame(columns=['data', 'municipio', 'unidade', 'missao'])
+    except Exception:
+        return pd.DataFrame(columns=['id', 'data', 'municipio', 'unidade', 'missao'])
 
 def salvar_no_db(data, municipio, unidade, missao):
     data_data = {
@@ -47,12 +48,19 @@ def salvar_no_db(data, municipio, unidade, missao):
     }
     supabase.table("escala_operacional").insert(data_data).execute()
 
+def apagar_no_db(id_registro):
+    try:
+        supabase.table("escala_operacional").delete().eq("id", id_registro).execute()
+        return True
+    except Exception:
+        return False
+
 def color_status(val):
     if val == 'CIPE-MA': return 'background-color: #add8e6; color: black'
     if val == 'CIPT-ES': return 'background-color: #90ee90; color: black'
     return 'background-color: white; color: black'
 
-# --- 5. LÓGICA DE AUTENTICAÇÃO INICIAL ---
+# --- 5. LÓGICA DE AUTENTICAÇÃO ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "gestao_liberada" not in st.session_state:
@@ -63,9 +71,7 @@ if not st.session_state.autenticado:
     with st.form("login_form"):
         user = st.text_input("Usuário")
         password = st.text_input("Senha", type="password")
-        entrar = st.form_submit_button("Entrar no Sistema")
-        
-        if entrar:
+        if st.form_submit_button("Entrar no Sistema"):
             if user == USUARIO_CORRETO and password == SENHA_CORRETA:
                 st.session_state.autenticado = True
                 st.rerun()
@@ -107,14 +113,9 @@ with menu[0]:
                     df_regiao.loc[df_regiao['Município'] == row['municipio'], 'Ocupação'] = row['unidade']
                     df_regiao.loc[df_regiao['Município'] == row['municipio'], 'Missão'] = row['missao']
 
-        st.dataframe(
-            df_regiao.style.map(color_status, subset=['Ocupação']), 
-            use_container_width=True, 
-            hide_index=True
-        )
-        st.write("")
+        st.dataframe(df_regiao.style.map(color_status, subset=['Ocupação']), use_container_width=True, hide_index=True)
 
-# --- ABA DE GESTÃO (COM SENHA ADICIONAL) ---
+# --- ABA DE GESTÃO (AGENDAR E APAGAR) ---
 with menu[1]:
     if not st.session_state.gestao_liberada:
         st.warning("🔒 Esta área exige a Chave de Comando.")
@@ -126,35 +127,47 @@ with menu[1]:
             else:
                 st.error("Chave incorreta.")
     else:
-        if st.button("🔒 Bloquear Gestão"):
-            st.session_state.gestao_liberada = False
-            st.rerun()
-            
-        st.subheader("Agendar Nova Missão")
-        col1, col2 = st.columns(2)
+        st.button("🔒 Bloquear Gestão", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
         
-        with col1:
-            data_ag = st.date_input("Data da Missão", datetime.date.today())
-            dias_semana = {0: "Segunda-feira", 1: "Terça-feira", 2: "Quarta-feira", 3: "Quinta-feira", 4: "Sexta-feira", 5: "Sábado", 6: "Domingo"}
-            st.write(f"📅 **Dia selecionado:** {dias_semana[data_ag.weekday()]}")
-            unid_ag = st.selectbox("Unidade Responsável", ["CIPE-MA", "CIPT-ES"])
+        tab_cad, tab_del = st.tabs(["📝 Novo Agendamento", "🗑️ Apagar Registro"])
         
-        with col2:
-            cidade_ag = st.selectbox("Município Alvo", todas_cidades)
-            missao_ag = st.text_area("Descrição Detalhada da Missão", placeholder="Objetivo da missão...")
+        with tab_cad:
+            col1, col2 = st.columns(2)
+            with col1:
+                data_ag = st.date_input("Data da Missão", datetime.date.today(), key="cad_data")
+                dias_semana = {0: "Segunda-feira", 1: "Terça-feira", 2: "Quarta-feira", 3: "Quinta-feira", 4: "Sexta-feira", 5: "Sábado", 6: "Domingo"}
+                st.write(f"📅 **Dia:** {dias_semana[data_ag.weekday()]}")
+                unid_ag = st.selectbox("Unidade", ["CIPE-MA", "CIPT-ES"], key="cad_unid")
+            with col2:
+                cidade_ag = st.selectbox("Município", todas_cidades, key="cad_cid")
+                missao_ag = st.text_area("Missão", placeholder="Descreva o objetivo...", key="cad_miss")
 
-        if st.button("Confirmar e Salvar no Banco de Dados"):
-            if not missao_ag:
-                st.error("Erro: A descrição da missão é obrigatória.")
+            if st.button("Salvar no Banco de Dados"):
+                if not missao_ag: st.error("A missão é obrigatória.")
+                else:
+                    salvar_no_db(data_ag, cidade_ag, unid_ag, missao_ag)
+                    st.success("Salvo!")
+                    st.rerun()
+
+        with tab_del:
+            st.subheader("Excluir Missão")
+            df_atual = carregar_dados_db()
+            if not df_atual.empty:
+                df_atual['view'] = df_atual['data'] + " | " + df_atual['municipio'] + " (" + df_atual['unidade'] + ")"
+                lista_missões = df_atual.sort_values(by='data', ascending=False)
+                selecionado = st.selectbox("Selecione para apagar:", lista_missões['view'].tolist())
+                id_alvo = df_atual[df_atual['view'] == selecionado]['id'].values[0]
+                
+                if st.button("❌ EXCLUIR DEFINITIVAMENTE"):
+                    if apagar_no_db(id_alvo):
+                        st.success("Excluído com sucesso!")
+                        st.rerun()
             else:
-                salvar_no_db(data_ag, cidade_ag, unid_ag, missao_ag)
-                st.success(f"Missão em {cidade_ag} salva com sucesso!")
-                st.rerun()
+                st.info("Nenhum registro para apagar.")
 
 # --- 7. HISTÓRICO ---
 st.markdown("---")
-with st.expander("📊 Ver Histórico Completo de Missões"):
+with st.expander("📊 Histórico de Missões"):
     df_hist = carregar_dados_db()
     if not df_hist.empty:
-        df_hist = df_hist.rename(columns={'data': 'Data', 'municipio': 'Município', 'unidade': 'Unidade', 'missao': 'Missão'})
-        st.dataframe(df_hist.sort_values(by='Data', ascending=False), use_container_width=True, hide_index=True)
+        st.dataframe(df_hist.sort_values(by='data', ascending=False), use_container_width=True, hide_index=True)
