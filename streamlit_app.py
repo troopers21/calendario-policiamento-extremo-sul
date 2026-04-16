@@ -23,7 +23,7 @@ st.set_page_config(page_title="Sistema de Policiamento - PMBA", layout="wide")
 col_logo1, col_logo2, col_logo3 = st.columns([2, 1, 2])
 with col_logo2:
     try:
-        st.image("logo_unidade.jpeg", width=900) 
+        st.image("logo_unidade.png", width=150) 
     except:
         pass
 
@@ -163,4 +163,50 @@ with menu[1]:
 # --- ABA 2: GESTÃO ---
 with menu[2]:
     if not st.session_state.gestao_liberada:
-        ch = st
+        ch = st.text_input("Insira a Chave:", type="password")
+        if st.button("Liberar Acesso"):
+            if ch == CHAVE_GESTAO:
+                st.session_state.gestao_liberada = True
+                st.rerun()
+    else:
+        st.button("🔒 Bloquear", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
+        t1, t2 = st.tabs(["📝 Agendar", "🗑️ Apagar"])
+        with t1:
+            c1, c2 = st.columns(2)
+            dt = c1.date_input("Data da Missão", datetime.date.today())
+            un = c1.selectbox("Unidade", ["CIPE-MA", "CIPT-ES"])
+            mu = c2.selectbox("Município", sorted([cid for reg in regioes.values() for cid in reg]))
+            h_ent_ag = c1.selectbox("Entrada Prevista", lista_horas)
+            h_sai_ag = c2.selectbox("Saída Prevista", lista_horas)
+            ms = c2.text_area("Missão")
+            if st.button("Salvar Agendamento"):
+                df_ex = carregar_dados_db()
+                conflito = False
+                if not df_ex.empty:
+                    mesma_cidade = df_ex[(df_ex['data'] == dt.strftime("%Y-%m-%d")) & (df_ex['municipio'] == mu)]
+                    for _, row in mesma_cidade.iterrows():
+                        ex_in = int(row['hora_entrada'].split(':')[0]); ex_fi = int(row['hora_saida'].split(':')[0])
+                        no_in = int(h_ent_ag.split(':')[0]); no_fi = int(h_sai_ag.split(':')[0])
+                        if (no_in < ex_fi) and (no_fi > ex_in):
+                            conflito = True
+                            st.error(f"❌ Conflito em {mu}."); break
+                if not conflito:
+                    salvar_no_db(dt, mu, un, ms, h_ent_ag, h_sai_ag); st.rerun()
+        with t2:
+            df_del = carregar_dados_db().sort_values(by='data', ascending=False)
+            if not df_del.empty:
+                df_del['data_br'] = df_del['data'].apply(formatar_data_br)
+                v = st.selectbox("Escolha para apagar:", (df_del['data_br'] + " | " + df_del['municipio']).tolist())
+                id_a = df_del[(df_del['data_br'] + " | " + df_del['municipio']) == v]['id'].values[0]
+                if st.button("Confirmar Exclusão"): apagar_no_db(id_a); st.rerun()
+
+# --- 8. HISTÓRICO ---
+st.markdown("---")
+with st.expander("📊 Histórico"):
+    df_h = carregar_dados_db()
+    if not df_h.empty:
+        df_h = df_h.sort_values(by='data', ascending=False)
+        df_h['Data'] = df_h['data'].apply(formatar_data_br)
+        df_h['Dia da Semana'] = df_h['data'].apply(obter_dia_semana)
+        df_h['Cumprida?'] = df_h['cumprido'].map({True: "Sim", False: "Não"}).fillna("-")
+        st.dataframe(df_h[['Data', 'Dia da Semana', 'municipio', 'unidade', 'comandante_nome', 'Cumprida?', 'hora_entrada', 'hora_saida', 'relatorio_resumido']], use_container_width=True, hide_index=True)
