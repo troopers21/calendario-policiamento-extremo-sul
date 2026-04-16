@@ -34,7 +34,14 @@ todas_cidades = sorted([c for lista in regioes.values() for c in lista])
 def carregar_dados_db():
     try:
         response = supabase.table("escala_operacional").select("*").execute()
-        return pd.DataFrame(response.data)
+        df = pd.DataFrame(response.data)
+        
+        # GARANTE QUE AS COLUNAS EXISTAM NO DATAFRAME PARA NÃO DAR KEYERROR
+        colunas_necessarias = ['id', 'data', 'municipio', 'unidade', 'missao', 'cumprido', 'hora_entrada', 'hora_saida', 'relatorio_resumido']
+        for col in colunas_necessarias:
+            if col not in df.columns:
+                df[col] = None if col != 'cumprido' else False
+        return df
     except Exception:
         return pd.DataFrame(columns=['id', 'data', 'municipio', 'unidade', 'missao', 'cumprido', 'hora_entrada', 'hora_saida', 'relatorio_resumido'])
 
@@ -105,7 +112,6 @@ if st.sidebar.button("Sair / Logoff"):
 
 st.title("📅 Sistema Operacional - Extremo Sul")
 
-# CRIAÇÃO DAS TRÊS ABAS
 menu = st.tabs(["📋 Consulta", "✅ Cumprimento", "⚙️ Gestão"])
 
 # --- ABA 0: CONSULTA ---
@@ -126,7 +132,7 @@ with menu[0]:
             df_dia = df_total[df_total['data'] == data_con_str]
             for _, row in df_dia.iterrows():
                 if row['municipio'] in cidades:
-                    status_txt = "✅ Cumprido" if row.get('cumprido') else "⚠️ Escalado"
+                    status_txt = "✅ Cumprido" if row.get('cumprido') == True else "⚠️ Escalado"
                     df_regiao.loc[df_regiao['Município'] == row['municipio'], 'Ocupação'] = row['unidade']
                     df_regiao.loc[df_regiao['Município'] == row['municipio'], 'Status'] = status_txt
 
@@ -135,11 +141,8 @@ with menu[0]:
 # --- ABA 1: CUMPRIMENTO DA ESCALA ---
 with menu[1]:
     st.subheader("Registrar Cumprimento de Missão")
-    st.info("Selecione sua missão abaixo para informar os detalhes do serviço.")
-    
     df_cump = carregar_dados_db()
     if not df_cump.empty:
-        # Filtrar apenas missões de hoje ou passadas que não foram cumpridas (ou todas para correção)
         df_cump = df_cump.sort_values(by='data', ascending=False)
         df_cump['selecao'] = df_cump['data'] + " | " + df_cump['municipio'] + " (" + df_cump['unidade'] + ")"
         
@@ -149,22 +152,19 @@ with menu[1]:
         with st.form("form_cumprimento"):
             col1, col2 = st.columns(2)
             with col1:
-                h_entrada = st.text_input("Hora de Entrada na Cidade", placeholder="Ex: 08:30")
-                h_saida = st.text_input("Hora de Saída da Cidade", placeholder="Ex: 18:00")
+                h_entrada = st.text_input("Hora de Entrada", value=str(dados_missao.get('hora_entrada') or ""))
+                h_saida = st.text_input("Hora de Saída", value=str(dados_missao.get('hora_saida') or ""))
             with col2:
-                status_final = st.checkbox("A missão foi cumprida integralmente?", value=True)
+                status_final = st.checkbox("Missão cumprida?", value=bool(dados_missao.get('cumprido')))
             
-            relatorio = st.text_area("Resumo da Missão / Observações", placeholder="Descreva brevemente as ocorrências...")
+            relatorio = st.text_area("Resumo da Missão", value=str(dados_missao.get('relatorio_resumido') or ""))
             
-            if st.form_submit_button("Salvar Registro de Cumprimento"):
+            if st.form_submit_button("Salvar Registro"):
                 if atualizar_cumprimento(dados_missao['id'], h_entrada, h_saida, relatorio, status_final):
-                    st.success("Cumprimento registrado com sucesso!")
+                    st.success("Atualizado!")
                     st.rerun()
-                else: st.error("Erro ao atualizar banco de dados.")
-    else:
-        st.write("Nenhuma missão encontrada.")
 
-# --- ABA 2: GESTÃO (PROTEGIDA) ---
+# --- ABA 2: GESTÃO ---
 with menu[2]:
     if not st.session_state.gestao_liberada:
         st.warning("🔒 Área Restrita.")
@@ -173,11 +173,9 @@ with menu[2]:
             if chave_input == CHAVE_GESTAO:
                 st.session_state.gestao_liberada = True
                 st.rerun()
-            else: st.error("Incorreta.")
     else:
         st.button("🔒 Bloquear", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
         tab_cad, tab_del = st.tabs(["📝 Agendar", "🗑️ Apagar"])
-        
         with tab_cad:
             col1, col2 = st.columns(2)
             with col1:
@@ -185,12 +183,11 @@ with menu[2]:
                 unid_ag = st.selectbox("Unidade", ["CIPE-MA", "CIPT-ES"])
             with col2:
                 cidade_ag = st.selectbox("Município", todas_cidades)
-                missao_ag = st.text_area("Missão Inicial")
+                missao_ag = st.text_area("Missão")
             if st.button("Salvar"):
                 salvar_no_db(data_ag, cidade_ag, unid_ag, missao_ag)
                 st.success("Agendado!")
                 st.rerun()
-
         with tab_del:
             df_del = carregar_dados_db().sort_values(by='data', ascending=False)
             if not df_del.empty:
@@ -201,13 +198,17 @@ with menu[2]:
                     apagar_no_db(id_alvo)
                     st.rerun()
 
-# --- 7. HISTÓRICO GERAL ---
+# --- 7. HISTÓRICO ---
 st.markdown("---")
-with st.expander("📊 Histórico e Relatórios de Cumprimento"):
-    df_hist = carregar_dados_db().sort_values(by='data', ascending=False)
+with st.expander("📊 Histórico de Cumprimento"):
+    df_hist = carregar_dados_db()
     if not df_hist.empty:
+        df_hist = df_hist.sort_values(by='data', ascending=False)
         df_hist['Dia da Semana'] = df_hist['data'].apply(obter_dia_semana)
-        # Reorganizar para mostrar as novas colunas
-        df_hist = df_hist[['data', 'Dia da Semana', 'municipio', 'unidade', 'cumprido', 'hora_entrada', 'hora_saida', 'relatorio_resumido']]
-        df_hist.columns = ['Data', 'Dia da Semana', 'Município', 'Unidade', 'Cumprido', 'Entrada', 'Saída', 'Relatório']
-        st.dataframe(df_hist, use_container_width=True, hide_index=True)
+        
+        # Filtra e organiza as colunas de forma segura
+        colunas_final = ['data', 'Dia da Semana', 'municipio', 'unidade', 'cumprido', 'hora_entrada', 'hora_saida', 'relatorio_resumido']
+        df_exibir = df_hist[colunas_final].copy()
+        df_exibir.columns = ['Data', 'Dia da Semana', 'Município', 'Unidade', 'Cumprido', 'Entrada', 'Saída', 'Relatório']
+        
+        st.dataframe(df_exibir, use_container_width=True, hide_index=True)
