@@ -8,12 +8,13 @@ USUARIO_CORRETO = "admin"
 SENHA_CORRETA = "pmba2026"
 CHAVE_GESTAO = "comando2026"
 
-# Inicialização segura do Session State (EVITA O ERRO QUE VOCÊ RECEBEU)
+# Inicialização segura do Session State
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "gestao_liberada" not in st.session_state:
     st.session_state.gestao_liberada = False
 
+# Configuração Supabase
 url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
@@ -35,7 +36,11 @@ def carregar_dados_db():
     try:
         response = supabase.table("escala_operacional").select("*").execute()
         df = pd.DataFrame(response.data)
-        colunas_nec = ['id', 'data', 'municipio', 'unidade', 'missao', 'cumprido', 'hora_entrada', 'hora_saida', 'relatorio_resumido', 'comandante_nome', 'comandante_matricula']
+        colunas_nec = [
+            'id', 'data', 'municipio', 'unidade', 'missao', 'cumprido', 
+            'hora_entrada', 'hora_saida', 'relatorio_resumido', 
+            'comandante_nome', 'comandante_matricula'
+        ]
         for col in colunas_nec:
             if col not in df.columns: df[col] = None
         return df
@@ -150,16 +155,16 @@ with menu[1]:
                 c1, c2 = st.columns(2)
                 n = c1.text_input("Comandante da Guarnição", value=str(d.get('comandante_nome') or ""))
                 m = c2.text_input("Matrícula", value=str(d.get('comandante_matricula') or ""))
-                h_e = c1.selectbox("Hora de Entrada na Cidade", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
-                h_s = c2.selectbox("Hora de Saída na Cidade", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
-                confirmar = st.checkbox("Sim", value=bool(d.get('cumprido')))
+                h_e = c1.selectbox("Hora de Entrada Real", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
+                h_s = c2.selectbox("Hora de Saída Real", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
+                confirmar = st.checkbox("Sim", value=bool(d.get('cumprido')), help="Confirme se a missão foi cumprida")
                 rel = st.text_area("Resumo da Missão", value=str(d.get('relatorio_resumido') or ""))
                 if st.form_submit_button("Salvar Registro"):
                     if atualizar_cumprimento(d['id'], h_e, h_s, rel, confirmar, n, m):
                         st.success("Dados atualizados!")
                         st.rerun()
 
-# --- ABA 2: GESTÃO (PROTEÇÃO CORRIGIDA) ---
+# --- ABA 2: GESTÃO ---
 with menu[2]:
     if not st.session_state.gestao_liberada:
         st.warning("🔒 Área Restrita à Chave de Comando.")
@@ -185,23 +190,27 @@ with menu[2]:
             if st.button("Salvar Agendamento"):
                 df_ex = carregar_dados_db()
                 conflito = False
+                
                 if not df_ex.empty:
-                    mesmo_dia = df_ex[(df_ex['data'] == dt.strftime("%Y-%m-%d")) & (df_ex['unidade'] == un)]
-                    for _, row in mesmo_dia.iterrows():
+                    # Trava de sobreposição por Cidade e Data
+                    mesma_cidade_dia = df_ex[(df_ex['data'] == dt.strftime("%Y-%m-%d")) & (df_ex['municipio'] == mu)]
+                    for _, row in mesma_cidade_dia.iterrows():
                         ex_in = int(row['hora_entrada'].split(':')[0])
                         ex_fi = int(row['hora_saida'].split(':')[0])
                         no_in = int(h_ent_ag.split(':')[0])
                         no_fi = int(h_sai_ag.split(':')[0])
+                        
                         if (no_in < ex_fi) and (no_fi > ex_in):
                             conflito = True
-                            st.error(f"❌ Conflito: {un} já está em {row['municipio']} das {row['hora_entrada']} às {row['hora_saida']}.")
+                            st.error(f"❌ CONFLITO: {mu} já possui visita das {row['hora_entrada']} às {row['hora_saida']} ({row['unidade']}).")
                             break
+                
                 if not conflito:
                     if int(h_sai_ag.split(':')[0]) <= int(h_ent_ag.split(':')[0]):
                         st.error("Erro: Saída deve ser após a Entrada.")
                     else:
                         salvar_no_db(dt, mu, un, ms, h_ent_ag, h_sai_ag)
-                        st.success("Agendado!")
+                        st.success("Agendado com sucesso!")
                         st.rerun()
 
         with t2:
@@ -223,4 +232,6 @@ with st.expander("📊 Histórico de Missões"):
         df_h['Data'] = df_h['data'].apply(formatar_data_br)
         df_h['Dia da Semana'] = df_h['data'].apply(obter_dia_semana)
         df_h['Cumprida?'] = df_h['cumprido'].map({True: "Sim", False: "Não"}).fillna("-")
-        st.dataframe(df_h[['Data', 'Dia da Semana', 'municipio', 'unidade', 'comandante_nome', 'Cumprida?', 'hora_entrada', 'hora_saida', 'relatorio_resumido']], use_container_width=True, hide_index=True)
+        # Exibição organizada do histórico
+        col_hist = ['Data', 'Dia da Semana', 'municipio', 'unidade', 'comandante_nome', 'Cumprida?', 'hora_entrada', 'hora_saida', 'relatorio_resumido']
+        st.dataframe(df_h[col_hist], use_container_width=True, hide_index=True)
