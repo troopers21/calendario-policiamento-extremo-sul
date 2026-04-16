@@ -17,17 +17,17 @@ url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
-st.set_page_config(page_title="CPR-ES - Sistema de Policiamento Sem Sobreposição", layout="wide")
+st.set_page_config(page_title="Sistema de Policiamento - PMBA", layout="wide")
 
 # --- 2. LOGO NO TOPO ---
 col_logo1, col_logo2, col_logo3 = st.columns([2, 1, 2])
 with col_logo2:
     try:
-        st.image("logo_unidade.jpeg", width=800) 
+        st.image("logo_unidade.png", width=150) 
     except:
         pass
 
-st.markdown("<h1 style='text-align: center;'>📅 CPR-ES - CPR-ES - Sistema de Policiamento Sem Sobreposição</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>📅 Sistema Operacional - Extremo Sul</h1>", unsafe_allow_html=True)
 
 # --- 3. FUNÇÕES DE SUPORTE ---
 def carregar_dados_db():
@@ -103,7 +103,7 @@ if st.sidebar.button("Sair / Logoff"):
 
 menu = st.tabs(["📋 Consulta", "✅ Cumprimento", "⚙️ Gestão"])
 
-# --- ABA 0: CONSULTA (Ajuste da Altura feito aqui) ---
+# --- ABA 0: CONSULTA (SOMENTE ATIVOS/CUMPRIDOS) ---
 with menu[0]:
     data_con = st.date_input("Selecione a Data", datetime.date.today())
     df_total = carregar_dados_db()
@@ -113,29 +113,36 @@ with menu[0]:
         "Costa das Baleias": ["Teixeira de Freitas", "Itamaraju", "Jucuruçu", "Medeiros Neto", "Itanhém", "Lajedão", "Vereda", "Ibirapuã", "Alcobaça", "Prado", "Caravelas", "Mucuri", "Nova Viçosa"]
     }
 
+    existem_missoes = False
+
     for regiao, cidades in regioes.items():
-        st.markdown(f"#### 📍 {regiao}")
         rows = []
-        for cid in cidades:
-            rows.append({"Município": cid, "Unidade": "Livre", "Status": "Pendente"})
-        df_reg = pd.DataFrame(rows)
-        
         if not df_total.empty:
-            df_dia = df_total[df_total['data'] == data_con.strftime("%Y-%m-%d")]
-            for _, r in df_dia.iterrows():
-                if r['municipio'] in cidades:
-                    txt = "✅ Cumprido" if r.get('cumprido') is True else "⚠️ Escalado"
-                    df_reg.loc[df_reg['Município'] == r['municipio'], ['Unidade', 'Status']] = [r['unidade'], txt]
-        
-        # AJUSTE: O cálculo da altura impede a barra de rolagem (40px por linha aprox + cabeçalho)
-        altura_dinamica = (len(cidades) + 1) * 35 + 3
-        
-        st.dataframe(
-            df_reg, 
-            use_container_width=True, 
-            hide_index=True, 
-            height=altura_dinamica
-        )
+            # Filtra apenas registros do dia e que pertençam às cidades da região atual
+            df_dia = df_total[(df_total['data'] == data_con.strftime("%Y-%m-%d")) & (df_total['municipio'].isin(cidades))]
+            
+            if not df_dia.empty:
+                existem_missoes = True
+                st.markdown(f"#### 📍 {regiao}")
+                
+                for _, r in df_dia.iterrows():
+                    status_txt = "✅ Cumprido" if r.get('cumprido') is True else "⚠️ Escalado"
+                    rows.append({
+                        "Município": r['municipio'],
+                        "Unidade": r['unidade'],
+                        "Entrada": r['hora_entrada'],
+                        "Saída": r['hora_saida'],
+                        "Status": status_txt
+                    })
+                
+                df_reg_view = pd.DataFrame(rows)
+                
+                # Ajuste de altura para mostrar tudo sem scroll
+                altura_calc = (len(rows) + 1) * 35 + 3
+                st.dataframe(df_reg_view, use_container_width=True, hide_index=True, height=altura_calc)
+
+    if not existem_missoes:
+        st.info(f"Não há policiamento escalado para o dia {data_con.strftime('%d/%m/%Y')}.")
 
 # --- ABA 1: CUMPRIMENTO ---
 with menu[1]:
