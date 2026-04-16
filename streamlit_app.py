@@ -17,7 +17,7 @@ url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
-st.set_page_config(page_title="CPR-ES - Sistema Controle Antisobreposição do Policiamento", layout="wide")
+st.set_page_config(page_title="CPR-ES - Sistema de Policiamento Sem Sobreposição", layout="wide")
 
 # --- 2. LOGO NO TOPO ---
 col_logo1, col_logo2, col_logo3 = st.columns([2, 1, 2])
@@ -27,7 +27,7 @@ with col_logo2:
     except:
         pass
 
-st.markdown("<h1 style='text-align: center;'>📅 CPR-ES - Sistema Controle Antisobreposição do Policiamento</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>📅 CPR-ES - CPR-ES - Sistema de Policiamento Sem Sobreposição</h1>", unsafe_allow_html=True)
 
 # --- 3. FUNÇÕES DE SUPORTE ---
 def carregar_dados_db():
