@@ -36,7 +36,6 @@ def carregar_dados_db():
         response = supabase.table("escala_operacional").select("*").execute()
         df = pd.DataFrame(response.data)
         
-        # GARANTE QUE TODAS AS COLUNAS EXISTAM PARA EVITAR ERROS
         colunas = [
             'id', 'data', 'municipio', 'unidade', 'missao', 'cumprido', 
             'hora_entrada', 'hora_saida', 'relatorio_resumido', 
@@ -44,10 +43,10 @@ def carregar_dados_db():
         ]
         for col in colunas:
             if col not in df.columns:
-                df[col] = None if col != 'cumprido' else False
+                df[col] = None
         return df
     except Exception:
-        return pd.DataFrame(columns=colunas)
+        return pd.DataFrame(columns=['id', 'data', 'municipio', 'unidade', 'missao'])
 
 def salvar_no_db(data, municipio, unidade, missao):
     data_data = {
@@ -55,17 +54,22 @@ def salvar_no_db(data, municipio, unidade, missao):
         "municipio": municipio,
         "unidade": unidade,
         "missao": missao,
-        "cumprido": False
+        "cumprido": None  # Inicia em branco
     }
     supabase.table("escala_operacional").insert(data_data).execute()
 
-def atualizar_cumprimento(id_registro, entrada, saida, relatorio, status, nome, matricula):
+def atualizar_cumprimento(id_registro, entrada, saida, relatorio, status_sim_nao, nome, matricula):
+    # Converte a seleção Sim/Não/Branco para o que será salvo no banco
+    valor_cumprido = None
+    if status_sim_nao == "Sim": valor_cumprido = True
+    elif status_sim_nao == "Não": valor_cumprido = False
+
     try:
         supabase.table("escala_operacional").update({
             "hora_entrada": entrada,
             "hora_saida": saida,
             "relatorio_resumido": relatorio,
-            "cumprido": status,
+            "cumprido": valor_cumprido,
             "comandante_nome": nome,
             "comandante_matricula": matricula
         }).eq("id", id_registro).execute()
@@ -138,7 +142,11 @@ with menu[0]:
             df_dia = df_total[df_total['data'] == data_con_str]
             for _, row in df_dia.iterrows():
                 if row['municipio'] in cidades:
-                    status_txt = "✅ Cumprido" if row.get('cumprido') == True else "⚠️ Escalado"
+                    cump = row.get('cumprido')
+                    if cump is True: status_txt = "✅ Cumprido"
+                    elif cump is False: status_txt = "❌ Não Cumprido"
+                    else: status_txt = "⚠️ Escalado"
+                    
                     df_regiao.loc[df_regiao['Município'] == row['municipio'], 'Ocupação'] = row['unidade']
                     df_regiao.loc[df_regiao['Município'] == row['municipio'], 'Status'] = status_txt
 
@@ -161,29 +169,30 @@ with menu[1]:
             dados_missao = df_cump[df_cump['selecao'] == missao_sel].iloc[0]
             
             with st.form("form_cumprimento"):
-                col_id1, col_id2 = st.columns(2)
-                with col_id1:
+                c1, c2 = st.columns(2)
+                with c1:
                     nome_cmd = st.text_input("Nome do Comandante da Guarnição", value=str(dados_missao.get('comandante_nome') or ""))
-                with col_id2:
-                    mat_cmd = st.text_input("Matrícula", value=str(dados_missao.get('comandante_matricula') or ""))
-
-                col1, col2 = st.columns(2)
-                with col1:
                     h_entrada = st.text_input("Hora de Entrada na Cidade", value=str(dados_missao.get('hora_entrada') or ""))
+                with c2:
+                    mat_cmd = st.text_input("Matrícula", value=str(dados_missao.get('comandante_matricula') or ""))
                     h_saida = st.text_input("Hora de Saída na Cidade", value=str(dados_missao.get('hora_saida') or ""))
-                with col2:
-                    status_final = st.checkbox("Missão cumprida?", value=bool(dados_missao.get('cumprido')))
+                
+                # ALTERAÇÃO SOLICITADA: Selectbox ao invés de Checkbox
+                opcoes_status = ["", "Sim", "Não"]
+                index_atual = 0
+                if dados_missao.get('cumprido') is True: index_atual = 1
+                elif dados_missao.get('cumprido') is False: index_atual = 2
+                
+                status_sel = st.selectbox("Missão Cumprida?", options=opcoes_status, index=index_atual)
                 
                 relatorio = st.text_area("Resumo da Missão", value=str(dados_missao.get('relatorio_resumido') or ""))
                 
                 if st.form_submit_button("Salvar Registro de Cumprimento"):
-                    if atualizar_cumprimento(dados_missao['id'], h_entrada, h_saida, relatorio, status_final, nome_cmd, mat_cmd):
-                        st.success("Dados de cumprimento salvos!")
+                    if atualizar_cumprimento(dados_missao['id'], h_entrada, h_saida, relatorio, status_sel, nome_cmd, mat_cmd):
+                        st.success("Dados de cumprimento atualizados!")
                         st.rerun()
         else:
-            st.warning("Não existem missões para hoje ou passadas.")
-    else:
-        st.write("Nenhuma missão cadastrada.")
+            st.warning("Não há missões para hoje ou datas passadas.")
 
 # --- ABA 2: GESTÃO ---
 with menu[2]:
@@ -198,11 +207,11 @@ with menu[2]:
         st.button("🔒 Bloquear", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
         tab_cad, tab_del = st.tabs(["📝 Agendar", "🗑️ Apagar"])
         with tab_cad:
-            col1, col2 = st.columns(2)
-            with col1:
+            c1, c2 = st.columns(2)
+            with c1:
                 data_ag = st.date_input("Data", datetime.date.today())
                 unid_ag = st.selectbox("Unidade", ["CIPE-MA", "CIPT-ES"])
-            with col2:
+            with c2:
                 cidade_ag = st.selectbox("Município", todas_cidades)
                 missao_ag = st.text_area("Missão Inicial")
             if st.button("Salvar"):
@@ -226,14 +235,17 @@ with st.expander("📊 Histórico Completo"):
     if not df_hist.empty:
         df_hist = df_hist.sort_values(by='data', ascending=False)
         df_hist['Dia da Semana'] = df_hist['data'].apply(obter_dia_semana)
-        # Reorganizar colunas para o relatório final
+        
+        # Formatação amigável para o histórico (converte booleanos em texto)
+        df_hist['Status'] = df_hist['cumprido'].map({True: "Sim", False: "Não"}).fillna("Em aberto")
+        
         colunas_final = [
             'data', 'Dia da Semana', 'municipio', 'unidade', 'comandante_nome', 
-            'comandante_matricula', 'cumprido', 'hora_entrada', 'hora_saida', 'relatorio_resumido'
+            'comandante_matricula', 'Status', 'hora_entrada', 'hora_saida', 'relatorio_resumido'
         ]
         df_exibir = df_hist[colunas_final].copy()
         df_exibir.columns = [
             'Data', 'Dia da Semana', 'Município', 'Unidade', 'Comandante', 
-            'Matrícula', 'Status', 'Entrada na Cidade', 'Saída na Cidade', 'Resumo'
+            'Matrícula', 'Missão Cumprida?', 'Entrada na Cidade', 'Saída na Cidade', 'Resumo'
         ]
         st.dataframe(df_exibir, use_container_width=True, hide_index=True)
