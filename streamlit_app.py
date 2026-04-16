@@ -18,7 +18,7 @@ st.set_page_config(page_title="Sistema de Policiamento - PMBA", layout="wide")
 col_logo1, col_logo2, col_logo3 = st.columns([2, 1, 2])
 with col_logo2:
     try:
-        st.image("logo_unidade.png", width=150) 
+        st.image("logo_unidade.jpeg", width=900) 
     except:
         pass
 
