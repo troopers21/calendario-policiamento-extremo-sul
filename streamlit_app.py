@@ -8,11 +8,13 @@ USUARIO_CORRETO = "admin"
 SENHA_CORRETA = "pmba2026"
 CHAVE_GESTAO = "comando2026"
 
+# Inicialização segura do Session State
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "gestao_liberada" not in st.session_state:
     st.session_state.gestao_liberada = False
 
+# Conexão Supabase
 url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
@@ -157,9 +159,7 @@ with menu[1]:
                 h_s = h_c2.selectbox("Hora Saída na Cidade", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
                 confirmar = h_c3.checkbox("Sim, missão cumprida", value=bool(d.get('cumprido')))
                 
-                # ALTERAÇÃO SOLICITADA: Texto explicativo no label
                 rel = st.text_area("Resumo da Missão (Ex.: Reintegração de Posse, Revista em Presídio, etc)", value=str(d.get('relatorio_resumido') or ""))
-                
                 if st.form_submit_button("Salvar Registro"):
                     if atualizar_cumprimento(d['id'], h_e, h_s, rel, confirmar, n, m, vtr): 
                         st.success("Atualizado com sucesso!")
@@ -189,19 +189,29 @@ with menu[2]:
                 h_e_ag = st.selectbox("Entrada Prevista", lista_horas, key="gest_he")
                 h_s_ag = st.selectbox("Saída Prevista", lista_horas, key="gest_hs")
                 ms = st.text_area("Missão", key="gest_ms")
+                
                 if st.button("Confirmar Agendamento"):
+                    conflito = False # INICIALIZAÇÃO FIXA PARA EVITAR NAMEERROR
                     df_ex = carregar_dados_db()
-                    conflito = False
+                    
                     if not df_ex.empty:
                         mesma_cidade = df_ex[(df_ex['data'] == dt.strftime("%Y-%m-%d")) & (df_ex['municipio'] == mu)]
                         for _, row in mesma_cidade.iterrows():
-                            ex_in = int(row['hora_entrada'].split(':')[0]); ex_fi = int(row['hora_saida'].split(':')[0])
-                            no_in = int(h_e_ag.split(':')[0]); no_fi = int(h_s_ag.split(':')[0])
+                            ex_in = int(row['hora_entrada'].split(':')[0])
+                            ex_fi = int(row['hora_saida'].split(':')[0])
+                            no_in = int(h_e_ag.split(':')[0])
+                            no_fi = int(h_s_ag.split(':')[0])
                             if (no_in < ex_fi) and (no_fi > ex_in):
                                 conflito = True
-                                st.error(f"❌ Conflito: {mu} já possui visita agendada neste horário."); break
-                if not conflito:
-                    salvar_no_db(dt, mu, un, ms, h_e_ag, h_s_ag); st.rerun()
+                                st.error(f"❌ Conflito: {mu} já possui visita agendada das {row['hora_entrada']} às {row['hora_saida']}.")
+                                break
+                    
+                    if not conflito:
+                        if int(h_s_ag.split(':')[0]) <= int(h_e_ag.split(':')[0]):
+                            st.error("Erro: Saída deve ser após a Entrada.")
+                        else:
+                            salvar_no_db(dt, mu, un, ms, h_e_ag, h_s_ag)
+                            st.rerun()
 
             with col_del:
                 st.subheader("Apagar Registro")
