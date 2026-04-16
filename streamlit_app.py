@@ -249,3 +249,6 @@ with st.expander("📊 Histórico Completo"):
             'Matrícula', 'Missão Cumprida?', 'Entrada na Cidade', 'Saída na Cidade', 'Resumo'
         ]
         st.dataframe(df_exibir, use_container_width=True, hide_index=True)
+
+# - LOGO
+st.image("logo_unidade.png", width=100)
