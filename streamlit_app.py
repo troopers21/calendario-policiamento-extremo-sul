@@ -46,14 +46,20 @@ if senha == "123":
     st.sidebar.subheader("Agendar Policiamento")
     data_ag = st.sidebar.date_input("Data", datetime.date.today())
     unid_ag = st.sidebar.selectbox("Unidade:", ["CIPE-MA", "CIPT-ES"])
-    cidades_ag = st.sidebar.multiselect("Municípios:", municipios)
+    
+    # ALTERADO DE multiselect PARA selectbox PARA PERMITIR APENAS UM
+    cidade_ag = st.sidebar.selectbox("Município:", municipios)
+    
     missao_ag = st.sidebar.text_area("Missão:")
 
     if st.sidebar.button("Salvar no Banco de Dados"):
-        for cidade in cidades_ag:
-            salvar_no_db(data_ag, cidade, unid_ag, missao_ag)
-        st.sidebar.success("Dados salvos permanentemente!")
-        st.rerun()
+        if not missao_ag:
+            st.sidebar.error("Descreva a missão antes de salvar.")
+        else:
+            # Como agora é apenas uma cidade, não precisamos mais do 'for'
+            salvar_no_db(data_ag, cidade_ag, unid_ag, missao_ag)
+            st.sidebar.success(f"Escala de {cidade_ag} salva permanentemente!")
+            st.rerun()
 
 # --- VISUALIZAÇÃO ---
 st.write("### 🔍 Consulta de Escala")
