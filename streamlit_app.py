@@ -36,16 +36,29 @@ def carregar_dados_db():
         response = supabase.table("escala_operacional").select("*").execute()
         return pd.DataFrame(response.data)
     except Exception:
-        return pd.DataFrame(columns=['id', 'data', 'municipio', 'unidade', 'missao'])
+        return pd.DataFrame(columns=['id', 'data', 'municipio', 'unidade', 'missao', 'cumprido', 'hora_entrada', 'hora_saida', 'relatorio_resumido'])
 
 def salvar_no_db(data, municipio, unidade, missao):
     data_data = {
         "data": data.strftime("%Y-%m-%d"),
         "municipio": municipio,
         "unidade": unidade,
-        "missao": missao
+        "missao": missao,
+        "cumprido": False
     }
     supabase.table("escala_operacional").insert(data_data).execute()
+
+def atualizar_cumprimento(id_registro, entrada, saida, relatorio, status):
+    try:
+        supabase.table("escala_operacional").update({
+            "hora_entrada": entrada,
+            "hora_saida": saida,
+            "relatorio_resumido": relatorio,
+            "cumprido": status
+        }).eq("id", id_registro).execute()
+        return True
+    except:
+        return False
 
 def apagar_no_db(id_registro):
     try:
@@ -55,15 +68,11 @@ def apagar_no_db(id_registro):
         return False
 
 def obter_dia_semana(data_str):
-    dias = {
-        0: "Segunda-feira", 1: "Terça-feira", 2: "Quarta-feira",
-        3: "Quinta-feira", 4: "Sexta-feira", 5: "Sábado", 6: "Domingo"
-    }
+    dias = {0: "Segunda-feira", 1: "Terça-feira", 2: "Quarta-feira", 3: "Quinta-feira", 4: "Sexta-feira", 5: "Sábado", 6: "Domingo"}
     try:
         data_obj = datetime.datetime.strptime(data_str, "%Y-%m-%d")
         return dias[data_obj.weekday()]
-    except:
-        return "-"
+    except: return "-"
 
 def color_status(val):
     if val == 'CIPE-MA': return 'background-color: #add8e6; color: black'
@@ -85,8 +94,7 @@ if not st.session_state.autenticado:
             if user == USUARIO_CORRETO and password == SENHA_CORRETA:
                 st.session_state.autenticado = True
                 st.rerun()
-            else:
-                st.error("Usuário ou senha inválidos.")
+            else: st.error("Usuário ou senha inválidos.")
     st.stop()
 
 # --- 6. INTERFACE PRINCIPAL ---
@@ -95,17 +103,15 @@ if st.sidebar.button("Sair / Logoff"):
     st.session_state.gestao_liberada = False
     st.rerun()
 
-st.title("📅 Calendário de Policiamento - Extremo Sul")
+st.title("📅 Sistema Operacional - Extremo Sul")
 
-menu = st.tabs(["📋 Consulta de Escala", "⚙️ Gestão/Agendamento"])
+# CRIAÇÃO DAS TRÊS ABAS
+menu = st.tabs(["📋 Consulta", "✅ Cumprimento", "⚙️ Gestão"])
 
-# --- ABA DE CONSULTA ---
+# --- ABA 0: CONSULTA ---
 with menu[0]:
-    st.subheader("Visualização por Região")
-    col_data_con, _ = st.columns([1, 2])
-    with col_data_con:
-        data_con = st.date_input("Filtrar por Dia", datetime.date.today())
-    
+    st.subheader("Consulta de Escala")
+    data_con = st.date_input("Filtrar por Dia", datetime.date.today())
     df_total = carregar_dados_db()
     data_con_str = data_con.strftime("%Y-%m-%d")
 
@@ -113,81 +119,95 @@ with menu[0]:
         st.markdown(f"#### 📍 {regiao}")
         rows = []
         for cid in cidades:
-            rows.append({"Município": cid, "Ocupação": "Livre", "Missão": "-"})
+            rows.append({"Município": cid, "Ocupação": "Livre", "Status": "Pendente"})
         df_regiao = pd.DataFrame(rows)
 
         if not df_total.empty:
             df_dia = df_total[df_total['data'] == data_con_str]
             for _, row in df_dia.iterrows():
                 if row['municipio'] in cidades:
+                    status_txt = "✅ Cumprido" if row.get('cumprido') else "⚠️ Escalado"
                     df_regiao.loc[df_regiao['Município'] == row['municipio'], 'Ocupação'] = row['unidade']
-                    df_regiao.loc[df_regiao['Município'] == row['municipio'], 'Missão'] = row['missao']
+                    df_regiao.loc[df_regiao['Município'] == row['municipio'], 'Status'] = status_txt
 
         st.dataframe(df_regiao.style.map(color_status, subset=['Ocupação']), use_container_width=True, hide_index=True)
 
-# --- ABA DE GESTÃO (AGENDAR E APAGAR) ---
+# --- ABA 1: CUMPRIMENTO DA ESCALA ---
 with menu[1]:
+    st.subheader("Registrar Cumprimento de Missão")
+    st.info("Selecione sua missão abaixo para informar os detalhes do serviço.")
+    
+    df_cump = carregar_dados_db()
+    if not df_cump.empty:
+        # Filtrar apenas missões de hoje ou passadas que não foram cumpridas (ou todas para correção)
+        df_cump = df_cump.sort_values(by='data', ascending=False)
+        df_cump['selecao'] = df_cump['data'] + " | " + df_cump['municipio'] + " (" + df_cump['unidade'] + ")"
+        
+        missao_sel = st.selectbox("Selecione a Missão:", df_cump['selecao'].tolist())
+        dados_missao = df_cump[df_cump['selecao'] == missao_sel].iloc[0]
+        
+        with st.form("form_cumprimento"):
+            col1, col2 = st.columns(2)
+            with col1:
+                h_entrada = st.text_input("Hora de Entrada na Cidade", placeholder="Ex: 08:30")
+                h_saida = st.text_input("Hora de Saída da Cidade", placeholder="Ex: 18:00")
+            with col2:
+                status_final = st.checkbox("A missão foi cumprida integralmente?", value=True)
+            
+            relatorio = st.text_area("Resumo da Missão / Observações", placeholder="Descreva brevemente as ocorrências...")
+            
+            if st.form_submit_button("Salvar Registro de Cumprimento"):
+                if atualizar_cumprimento(dados_missao['id'], h_entrada, h_saida, relatorio, status_final):
+                    st.success("Cumprimento registrado com sucesso!")
+                    st.rerun()
+                else: st.error("Erro ao atualizar banco de dados.")
+    else:
+        st.write("Nenhuma missão encontrada.")
+
+# --- ABA 2: GESTÃO (PROTEGIDA) ---
+with menu[2]:
     if not st.session_state.gestao_liberada:
-        st.warning("🔒 Esta área exige a Chave de Comando.")
-        chave_input = st.text_input("Insira a Chave de Gestão:", type="password")
-        if st.button("Liberar Acesso"):
+        st.warning("🔒 Área Restrita.")
+        chave_input = st.text_input("Chave de Comando:", type="password")
+        if st.button("Liberar"):
             if chave_input == CHAVE_GESTAO:
                 st.session_state.gestao_liberada = True
                 st.rerun()
-            else:
-                st.error("Chave incorreta.")
+            else: st.error("Incorreta.")
     else:
-        st.button("🔒 Bloquear Gestão", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
-        
-        tab_cad, tab_del = st.tabs(["📝 Novo Agendamento", "🗑️ Apagar Registro"])
+        st.button("🔒 Bloquear", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
+        tab_cad, tab_del = st.tabs(["📝 Agendar", "🗑️ Apagar"])
         
         with tab_cad:
             col1, col2 = st.columns(2)
             with col1:
-                data_ag = st.date_input("Data da Missão", datetime.date.today(), key="cad_data")
-                st.write(f"📅 **Dia:** {obter_dia_semana(data_ag.strftime('%Y-%m-%d'))}")
-                unid_ag = st.selectbox("Unidade", ["CIPE-MA", "CIPT-ES"], key="cad_unid")
+                data_ag = st.date_input("Data", datetime.date.today())
+                unid_ag = st.selectbox("Unidade", ["CIPE-MA", "CIPT-ES"])
             with col2:
-                cidade_ag = st.selectbox("Município Alvo", todas_cidades, key="cad_cid")
-                missao_ag = st.text_area("Missão", placeholder="Descreva o objetivo...", key="cad_miss")
-
-            if st.button("Salvar no Banco de Dados"):
-                if not missao_ag: st.error("A missão é obrigatória.")
-                else:
-                    salvar_no_db(data_ag, cidade_ag, unid_ag, missao_ag)
-                    st.success("Salvo!")
-                    st.rerun()
+                cidade_ag = st.selectbox("Município", todas_cidades)
+                missao_ag = st.text_area("Missão Inicial")
+            if st.button("Salvar"):
+                salvar_no_db(data_ag, cidade_ag, unid_ag, missao_ag)
+                st.success("Agendado!")
+                st.rerun()
 
         with tab_del:
-            st.subheader("Excluir Missão")
-            df_atual = carregar_dados_db()
-            if not df_atual.empty:
-                # Ordena para que as datas mais recentes apareçam no topo da lista de seleção
-                df_atual = df_atual.sort_values(by='data', ascending=False)
-                df_atual['view'] = df_atual['data'] + " | " + df_atual['municipio'] + " (" + df_atual['unidade'] + ")"
-                
-                selecionado = st.selectbox("Selecione para apagar:", df_atual['view'].tolist())
-                id_alvo = df_atual[df_atual['view'] == selecionado]['id'].values[0]
-                
-                if st.button("❌ EXCLUIR DEFINITIVAMENTE"):
-                    if apagar_no_db(id_alvo):
-                        st.success("Excluído com sucesso!")
-                        st.rerun()
-            else:
-                st.info("Nenhum registro para apagar.")
+            df_del = carregar_dados_db().sort_values(by='data', ascending=False)
+            if not df_del.empty:
+                df_del['view'] = df_del['data'] + " | " + df_del['municipio']
+                sel = st.selectbox("Apagar:", df_del['view'].tolist())
+                id_alvo = df_del[df_del['view'] == sel]['id'].values[0]
+                if st.button("Excluir"):
+                    apagar_no_db(id_alvo)
+                    st.rerun()
 
-# --- 7. HISTÓRICO COM ORDEM CRONOLÓGICA (MAIS RECENTES NO TOPO) ---
+# --- 7. HISTÓRICO GERAL ---
 st.markdown("---")
-with st.expander("📊 Histórico de Missões"):
-    df_hist = carregar_dados_db()
+with st.expander("📊 Histórico e Relatórios de Cumprimento"):
+    df_hist = carregar_dados_db().sort_values(by='data', ascending=False)
     if not df_hist.empty:
-        # Garante a ordem cronológica: False para datas mais recentes em cima
-        df_hist = df_hist.sort_values(by='data', ascending=False)
-        
         df_hist['Dia da Semana'] = df_hist['data'].apply(obter_dia_semana)
-        df_hist = df_hist[['data', 'Dia da Semana', 'municipio', 'unidade', 'missao']]
-        df_hist.columns = ['Data', 'Dia da Semana', 'Município', 'Unidade', 'Missão']
-        
+        # Reorganizar para mostrar as novas colunas
+        df_hist = df_hist[['data', 'Dia da Semana', 'municipio', 'unidade', 'cumprido', 'hora_entrada', 'hora_saida', 'relatorio_resumido']]
+        df_hist.columns = ['Data', 'Dia da Semana', 'Município', 'Unidade', 'Cumprido', 'Entrada', 'Saída', 'Relatório']
         st.dataframe(df_hist, use_container_width=True, hide_index=True)
-    else:
-        st.write("Nenhum dado registrado.")
