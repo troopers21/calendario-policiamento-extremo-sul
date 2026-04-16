@@ -153,11 +153,13 @@ with menu[1]:
                 vtr = c3.text_input("Prefixo Viatura", value=str(d.get('viatura') or ""), placeholder="Ex: 9.0201")
                 
                 h_c1, h_c2, h_c3 = st.columns([1, 1, 2])
-                h_e = h_c1.selectbox("Hora Entrada", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
-                h_s = h_c2.selectbox("Hora Saída", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
+                h_e = h_c1.selectbox("Hora Entrada na Cidade", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
+                h_s = h_c2.selectbox("Hora Saída na Cidade", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
                 confirmar = h_c3.checkbox("Sim, missão cumprida", value=bool(d.get('cumprido')))
                 
-                rel = st.text_area("Resumo da Missão", value=str(d.get('relatorio_resumido') or ""))
+                # ALTERAÇÃO SOLICITADA: Texto explicativo no label
+                rel = st.text_area("Resumo da Missão (Ex.: Reintegração de Posse, Revista em Presídio, etc)", value=str(d.get('relatorio_resumido') or ""))
+                
                 if st.form_submit_button("Salvar Registro"):
                     if atualizar_cumprimento(d['id'], h_e, h_s, rel, confirmar, n, m, vtr): 
                         st.success("Atualizado com sucesso!")
@@ -197,9 +199,9 @@ with menu[2]:
                             no_in = int(h_e_ag.split(':')[0]); no_fi = int(h_s_ag.split(':')[0])
                             if (no_in < ex_fi) and (no_fi > ex_in):
                                 conflito = True
-                                st.error(f"❌ Conflito em {mu}."); break
-                    if not conflito:
-                        salvar_no_db(dt, mu, un, ms, h_e_ag, h_s_ag); st.rerun()
+                                st.error(f"❌ Conflito: {mu} já possui visita agendada neste horário."); break
+                if not conflito:
+                    salvar_no_db(dt, mu, un, ms, h_e_ag, h_s_ag); st.rerun()
 
             with col_del:
                 st.subheader("Apagar Registro")
@@ -227,9 +229,6 @@ with menu[2]:
                 df_cpr_data = df_cpr_data.sort_values(by='data', ascending=False)
                 df_cpr_data['Data'] = df_cpr_data['data'].apply(formatar_data_br)
                 df_cpr_data['Situação'] = df_cpr_data['cumprido'].map({True: "✅ CUMPRIDO", False: "⚠️ AGENDADO"}).fillna("⚠️ AGENDADO")
-                
-                # Seleção de colunas: Trocado 'viatura' por 'relatorio_resumido'
                 df_cpr_view = df_cpr_data[['Data', 'municipio', 'unidade', 'Situação', 'hora_entrada', 'hora_saida', 'comandante_nome', 'relatorio_resumido']]
                 df_cpr_view.columns = ['Data', 'Cidade', 'Unidade', 'Situação', 'Início', 'Fim', 'Comandante', 'Relatório da Missão']
-                
                 st.dataframe(df_cpr_view, use_container_width=True, hide_index=True)
