@@ -162,9 +162,11 @@ with menu[1]:
             st.subheader("Excluir Missão")
             df_atual = carregar_dados_db()
             if not df_atual.empty:
+                # Ordena para que as datas mais recentes apareçam no topo da lista de seleção
+                df_atual = df_atual.sort_values(by='data', ascending=False)
                 df_atual['view'] = df_atual['data'] + " | " + df_atual['municipio'] + " (" + df_atual['unidade'] + ")"
-                lista_missões = df_atual.sort_values(by='data', ascending=False)
-                selecionado = st.selectbox("Selecione para apagar:", lista_missões['view'].tolist())
+                
+                selecionado = st.selectbox("Selecione para apagar:", df_atual['view'].tolist())
                 id_alvo = df_atual[df_atual['view'] == selecionado]['id'].values[0]
                 
                 if st.button("❌ EXCLUIR DEFINITIVAMENTE"):
@@ -174,21 +176,18 @@ with menu[1]:
             else:
                 st.info("Nenhum registro para apagar.")
 
-# --- 7. HISTÓRICO COM COLUNA DIA DA SEMANA ---
+# --- 7. HISTÓRICO COM ORDEM CRONOLÓGICA (MAIS RECENTES NO TOPO) ---
 st.markdown("---")
 with st.expander("📊 Histórico de Missões"):
     df_hist = carregar_dados_db()
     if not df_hist.empty:
-        # Criar a coluna Dia da Semana
+        # Garante a ordem cronológica: False para datas mais recentes em cima
+        df_hist = df_hist.sort_values(by='data', ascending=False)
+        
         df_hist['Dia da Semana'] = df_hist['data'].apply(obter_dia_semana)
-        
-        # Reorganizar colunas para: Data, Dia da Semana, Município, Unidade, Missão
-        # Nota: 'id' é mantido mas pode ser escondido se desejar
         df_hist = df_hist[['data', 'Dia da Semana', 'municipio', 'unidade', 'missao']]
-        
-        # Renomear para exibição amigável
         df_hist.columns = ['Data', 'Dia da Semana', 'Município', 'Unidade', 'Missão']
         
-        st.dataframe(df_hist.sort_values(by='Data', ascending=False), use_container_width=True, hide_index=True)
+        st.dataframe(df_hist, use_container_width=True, hide_index=True)
     else:
         st.write("Nenhum dado registrado.")
