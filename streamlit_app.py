@@ -9,7 +9,6 @@ SENHA_CORRETA = "pmba2026"
 CHAVE_GESTAO = "comando2026"
 
 # --- 2. CONFIGURAÇÃO DO BANCO DE DADOS (SUPABASE) ---
-# Certifique-se de que SUPABASE_URL e SUPABASE_KEY estão nos Secrets do Streamlit
 url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
@@ -54,6 +53,17 @@ def apagar_no_db(id_registro):
         return True
     except Exception:
         return False
+
+def obter_dia_semana(data_str):
+    dias = {
+        0: "Segunda-feira", 1: "Terça-feira", 2: "Quarta-feira",
+        3: "Quinta-feira", 4: "Sexta-feira", 5: "Sábado", 6: "Domingo"
+    }
+    try:
+        data_obj = datetime.datetime.strptime(data_str, "%Y-%m-%d")
+        return dias[data_obj.weekday()]
+    except:
+        return "-"
 
 def color_status(val):
     if val == 'CIPE-MA': return 'background-color: #add8e6; color: black'
@@ -135,11 +145,10 @@ with menu[1]:
             col1, col2 = st.columns(2)
             with col1:
                 data_ag = st.date_input("Data da Missão", datetime.date.today(), key="cad_data")
-                dias_semana = {0: "Segunda-feira", 1: "Terça-feira", 2: "Quarta-feira", 3: "Quinta-feira", 4: "Sexta-feira", 5: "Sábado", 6: "Domingo"}
-                st.write(f"📅 **Dia:** {dias_semana[data_ag.weekday()]}")
+                st.write(f"📅 **Dia:** {obter_dia_semana(data_ag.strftime('%Y-%m-%d'))}")
                 unid_ag = st.selectbox("Unidade", ["CIPE-MA", "CIPT-ES"], key="cad_unid")
             with col2:
-                cidade_ag = st.selectbox("Município", todas_cidades, key="cad_cid")
+                cidade_ag = st.selectbox("Município Alvo", todas_cidades, key="cad_cid")
                 missao_ag = st.text_area("Missão", placeholder="Descreva o objetivo...", key="cad_miss")
 
             if st.button("Salvar no Banco de Dados"):
@@ -165,9 +174,21 @@ with menu[1]:
             else:
                 st.info("Nenhum registro para apagar.")
 
-# --- 7. HISTÓRICO ---
+# --- 7. HISTÓRICO COM COLUNA DIA DA SEMANA ---
 st.markdown("---")
 with st.expander("📊 Histórico de Missões"):
     df_hist = carregar_dados_db()
     if not df_hist.empty:
-        st.dataframe(df_hist.sort_values(by='data', ascending=False), use_container_width=True, hide_index=True)
+        # Criar a coluna Dia da Semana
+        df_hist['Dia da Semana'] = df_hist['data'].apply(obter_dia_semana)
+        
+        # Reorganizar colunas para: Data, Dia da Semana, Município, Unidade, Missão
+        # Nota: 'id' é mantido mas pode ser escondido se desejar
+        df_hist = df_hist[['data', 'Dia da Semana', 'municipio', 'unidade', 'missao']]
+        
+        # Renomear para exibição amigável
+        df_hist.columns = ['Data', 'Dia da Semana', 'Município', 'Unidade', 'Missão']
+        
+        st.dataframe(df_hist.sort_values(by='Data', ascending=False), use_container_width=True, hide_index=True)
+    else:
+        st.write("Nenhum dado registrado.")
