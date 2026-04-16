@@ -251,4 +251,4 @@ with st.expander("📊 Histórico Completo"):
         st.dataframe(df_exibir, use_container_width=True, hide_index=True)
 
 # - LOGO
-st.image("Logo Todas Unidades CPR-ES.jpeg", width=500)
+st.image("Logo Todas Unidades CPR-ES.jpeg", width=800)
