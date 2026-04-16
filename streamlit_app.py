@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
+import datetime
 
 # --- CONFIGURAÇÃO DO BANCO DE DADOS (SUPABASE) ---
 # No Streamlit Cloud, você cadastrará estas chaves em "Settings > Secrets"
