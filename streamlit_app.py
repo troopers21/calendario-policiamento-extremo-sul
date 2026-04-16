@@ -34,7 +34,11 @@ def carregar_dados_db():
     try:
         response = supabase.table("escala_operacional").select("*").execute()
         df = pd.DataFrame(response.data)
-        colunas_nec = ['id', 'data', 'municipio', 'unidade', 'missao', 'cumprido', 'hora_entrada', 'hora_saida', 'relatorio_resumido', 'comandante_nome', 'comandante_matricula']
+        colunas_nec = [
+            'id', 'data', 'municipio', 'unidade', 'missao', 'cumprido', 
+            'hora_entrada', 'hora_saida', 'relatorio_resumido', 
+            'comandante_nome', 'comandante_matricula', 'viatura'
+        ]
         for col in colunas_nec:
             if col not in df.columns: df[col] = None
         return df
@@ -52,11 +56,12 @@ def salvar_no_db(data, municipio, unidade, missao, h_ent, h_sai):
         "hora_saida": h_sai
     }).execute()
 
-def atualizar_cumprimento(id_registro, entrada, saida, relatorio, status_bool, nome, matricula):
+def atualizar_cumprimento(id_registro, entrada, saida, relatorio, status_bool, nome, matricula, vtr):
     try:
         supabase.table("escala_operacional").update({
             "hora_entrada": entrada, "hora_saida": saida, "relatorio_resumido": relatorio,
-            "cumprido": status_bool, "comandante_nome": nome, "comandante_matricula": matricula
+            "cumprido": status_bool, "comandante_nome": nome, "comandante_matricula": matricula,
+            "viatura": vtr
         }).eq("id", id_registro).execute()
         return True
     except: return False
@@ -143,17 +148,23 @@ with menu[1]:
             sel_missao = st.selectbox("Selecione a Missão:", df_filt['selecao'].tolist())
             d = df_filt[df_filt['selecao'] == sel_missao].iloc[0]
             with st.form("f_cump"):
-                c1, c2 = st.columns(2)
+                c1, c2, c3 = st.columns([2, 1, 1])
                 n = c1.text_input("Comandante", value=str(d.get('comandante_nome') or ""))
                 m = c2.text_input("Matrícula", value=str(d.get('comandante_matricula') or ""))
-                h_e = c1.selectbox("Hora Entrada", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
-                h_s = c2.selectbox("Hora Saída", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
-                confirmar = st.checkbox("Sim", value=bool(d.get('cumprido')))
+                vtr = c3.text_input("Prefixo Viatura", value=str(d.get('viatura') or ""), placeholder="Ex: 9.0201")
+                
+                h_c1, h_c2, h_c3 = st.columns([1, 1, 2])
+                h_e = h_c1.selectbox("Hora Entrada", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
+                h_s = h_c2.selectbox("Hora Saída", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
+                confirmar = h_c3.checkbox("Sim, missão cumprida", value=bool(d.get('cumprido')))
+                
                 rel = st.text_area("Resumo da Missão", value=str(d.get('relatorio_resumido') or ""))
                 if st.form_submit_button("Salvar Registro"):
-                    if atualizar_cumprimento(d['id'], h_e, h_s, rel, confirmar, n, m): st.rerun()
+                    if atualizar_cumprimento(d['id'], h_e, h_s, rel, confirmar, n, m, vtr): 
+                        st.success("Atualizado com sucesso!")
+                        st.rerun()
 
-# --- ABA 2: GESTÃO (COM O HISTÓRICO DENTRO) ---
+# --- ABA 2: GESTÃO ---
 with menu[2]:
     if not st.session_state.gestao_liberada:
         st.warning("🔒 Área Restrita à Chave de Comando.")
@@ -204,4 +215,4 @@ with menu[2]:
                 df_h['Data'] = df_h['data'].apply(formatar_data_br)
                 df_h['Dia da Semana'] = df_h['data'].apply(obter_dia_semana)
                 df_h['Cumprida?'] = df_h['cumprido'].map({True: "Sim", False: "Não"}).fillna("-")
-                st.dataframe(df_h[['Data', 'Dia da Semana', 'municipio', 'unidade', 'comandante_nome', 'Cumprida?', 'hora_entrada', 'hora_saida', 'relatorio_resumido']], use_container_width=True, hide_index=True)
+                st.dataframe(df_h[['Data', 'Dia da Semana', 'municipio', 'unidade', 'viatura', 'comandante_nome', 'Cumprida?', 'hora_entrada', 'hora_saida', 'relatorio_resumido']], use_container_width=True, hide_index=True)
