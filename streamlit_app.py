@@ -5,6 +5,7 @@ import datetime
 
 # --- 1. CONFIGURAÇÕES E CONEXÃO ---
 CHAVE_GESTAO = "comando2026"
+MATRICULA_ADMIN = "30455232"
 url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
@@ -60,7 +61,6 @@ if st.session_state.user_session is None:
     with aba_auth[1]:
         st.info("⚠️ Um link de ativação será enviado ao e-mail informado.")
         with st.form("register_form"):
-            # CAMPOS DE PERFIL ATUALIZADOS
             lista_postos = ["Cel PM", "Ten Cel PM", "Maj PM", "Cap PM", "Ten PM", "Asp PM", "Subten PM", "Sgt PM", "Cb PM", "Sd PM"]
             lista_unidades_cadastro = ["CPR-ES", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"]
             
@@ -96,7 +96,7 @@ if st.session_state.user_session is None:
                                 }
                             }
                         })
-                        st.success("✅ Cadastro solicitado! Verifique seu e-mail para ativar a conta.")
+                        st.success("✅ Cadastro solicitado! Verifique seu e-mail.")
                     except Exception as e: 
                         st.error(f"Erro: {e}")
     st.stop()
@@ -109,9 +109,9 @@ nome_user = user_meta.get("nome_completo", "Usuário")
 mat_user = user_meta.get("matricula", "")
 unidade_user = user_meta.get("unidade", "")
 
-# Lógica de Acesso à aba Comandante (Oficiais)
-postos_comando = ["Cel PM", "Ten Cel PM", "Maj PM", "Cap PM", "Ten PM"]
-eh_comando = p_g_user in postos_comando
+# Regras de Visibilidade
+eh_comando = p_g_user in ["Cel PM", "Ten Cel PM", "Maj PM", "Cap PM", "Ten PM"]
+eh_admin = mat_user == MATRICULA_ADMIN
 
 def carregar_dados_db():
     try:
@@ -139,19 +139,27 @@ with st.sidebar:
         st.session_state.user_session = None
         st.rerun()
 
-# Definição das Abas
+# --- 6. DEFINIÇÃO DINÂMICA DAS ABAS ---
 titulos_abas = ["📋 Consulta de Escala", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão"]
 if eh_comando:
     titulos_abas.insert(1, "🎖️ Comandante")
+if eh_admin:
+    titulos_abas.append("🔑 Admin")
 
 abas = st.tabs(titulos_abas)
 
+# Mapeamento manual baseado na existência das abas extras
+idx = 0
+tab_cons = abas[idx]; idx += 1
 if eh_comando:
-    tab_cons, tab_cmdo, tab_cump, tab_esta, tab_gest = abas
-else:
-    tab_cons, tab_cump, tab_esta, tab_gest = abas
+    tab_cmdo = abas[idx]; idx += 1
+tab_cump = abas[idx]; idx += 1
+tab_esta = abas[idx]; idx += 1
+tab_gest = abas[idx]; idx += 1
+if eh_admin:
+    tab_admin = abas[idx]
 
-# --- ABA 0: CONSULTA ---
+# --- ABA: CONSULTA ---
 with tab_cons:
     data_con = st.date_input("Consultar Data:", datetime.date.today())
     df_total = carregar_dados_db()
@@ -163,7 +171,7 @@ with tab_cons:
                 df_dia['Estado'] = df_dia['cumprido'].map({True: "✅ Cumprida", False: "⚠️ Em Aberto"})
                 st.dataframe(df_dia[['municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Estado']], use_container_width=True, hide_index=True)
 
-# --- ABA 1: COMANDANTE (VISÃO TOTAL) ---
+# --- ABA: COMANDANTE (VISÃO TOTAL) ---
 if eh_comando:
     with tab_cmdo:
         st.subheader("🎖️ Painel de Comando - Todos os Registros")
@@ -177,14 +185,8 @@ if eh_comando:
                         df_reg['Data'] = df_reg['data'].apply(formatar_data_br)
                         df_reg['Situação'] = df_reg['cumprido'].map({True: "✅ Concluída", False: "📅 Agendada"})
                         df_reg['Relatório/Objetivo'] = df_reg.apply(
-                            lambda x: x['relatorio_resumido'] if x['cumprido'] and x['relatorio_resumido'] else x['missao'], 
-                            axis=1
-                        )
-                        st.dataframe(
-                            df_reg[['Data', 'municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Situação', 'Relatório/Objetivo']], 
-                            use_container_width=True, hide_index=True
-                        )
-        else: st.info("Sem registros.")
+                            lambda x: x['relatorio_resumido'] if x['cumprido'] and x['relatorio_resumido'] else x['missao'], axis=1)
+                        st.dataframe(df_reg[['Data', 'municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Situação', 'Relatório/Objetivo']], use_container_width=True, hide_index=True)
 
 # --- ABA: CUMPRIMENTO ---
 with tab_cump:
@@ -201,15 +203,15 @@ with tab_cump:
             v = c3.text_input("Viatura", d.get('viatura', ''))
             h_e = st.selectbox("Entrada Real", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
             h_s = st.selectbox("Saída Real", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
-            rel = st.text_area("Relatório Resumido", d.get('relatorio_resumido', ''))
+            rel = st.text_area("Relatório", d.get('relatorio_resumido', ''))
             conf = st.checkbox("Confirmar Cumprimento", value=bool(d.get('cumprido', False)))
-            if st.form_submit_button("Salvar Registro"):
+            if st.form_submit_button("Salvar"):
                 supabase.table("escala_operacional").update({
                     "comandante_nome": n, "comandante_matricula": m, "viatura": v,
                     "hora_entrada": h_e, "hora_saida": h_s, "relatorio_resumido": rel, "cumprido": conf,
                     "editado_por": user_email, "ultima_edicao": datetime.datetime.now().isoformat()
                 }).eq("id", d['id']).execute()
-                st.success("Atualizado!"); st.rerun()
+                st.success("Salvo!"); st.rerun()
 
 # --- ABA: ESTATÍSTICAS ---
 with tab_esta:
@@ -232,16 +234,11 @@ with tab_gest:
             with st.form("f_nova", clear_on_submit=True):
                 dt = st.date_input("Data")
                 mu = st.selectbox("Cidade", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
-                un = st.selectbox("Unidade Responsável", ["CPR-ES", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
-                h_e = st.selectbox("Entrada Prevista", lista_horas)
-                h_s = st.selectbox("Saída Prevista", lista_horas)
+                un = st.selectbox("Unidade", ["CPR-ES", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
+                h_e, h_s = st.selectbox("Entrada", lista_horas), st.selectbox("Saída", lista_horas)
                 ob = st.text_area("Objetivo")
                 if st.form_submit_button("Confirmar"):
-                    supabase.table("escala_operacional").insert({
-                        "data": str(dt), "municipio": mu, "unidade": un, 
-                        "hora_entrada": h_e, "hora_saida": h_s, "missao": ob, 
-                        "criado_por": user_email
-                    }).execute()
+                    supabase.table("escala_operacional").insert({"data": str(dt), "municipio": mu, "unidade": un, "hora_entrada": h_e, "hora_saida": h_s, "missao": ob, "criado_por": user_email}).execute()
                     st.rerun()
         with col2:
             st.subheader("🗑️ Excluir")
@@ -253,3 +250,33 @@ with tab_gest:
                     id_del = df_del[df_del['txt'] == it]['id'].values[0]
                     supabase.table("escala_operacional").delete().eq("id", id_del).execute()
                     st.rerun()
+
+# --- ABA: ADMIN (VISIBILIDADE POR MATRÍCULA) ---
+if eh_admin:
+    with tab_admin:
+        st.subheader("👥 Gestão de Usuários Cadastrados")
+        try:
+            # Busca todos os usuários (Requer que a Service Role Key tenha permissão ou usar list_users)
+            # Nota: O Supabase por padrão não permite listar usuários via Client comum por segurança. 
+            # Se der erro, você precisará de uma função no banco ou usar o Admin Auth do Supabase.
+            users_res = supabase.auth.admin.list_users()
+            
+            user_list = []
+            for u in users_res:
+                meta = u.user_metadata
+                user_list.append({
+                    "Cadastro": u.created_at[:19].replace("T", " "),
+                    "Posto/Grad": meta.get("posto_grad", "-"),
+                    "Nome": meta.get("nome_completo", "-"),
+                    "Matrícula": meta.get("matricula", "-"),
+                    "Unidade": meta.get("unidade", "-"),
+                    "E-mail": u.email,
+                    "Último Login": u.last_sign_in_at[:19].replace("T", " ") if u.last_sign_in_at else "Nunca"
+                })
+            
+            df_users = pd.DataFrame(user_list)
+            st.dataframe(df_users, use_container_width=True, hide_index=True)
+            st.info(f"Total de usuários: {len(df_users)}")
+            
+        except Exception as e:
+            st.error("Erro ao listar usuários. Certifique-se de que a chave do Supabase possui permissões de 'service_role'.")
