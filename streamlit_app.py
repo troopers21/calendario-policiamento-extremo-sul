@@ -115,27 +115,21 @@ with st.sidebar:
         st.session_state.user_session = None
         st.rerun()
 
-# Definição Dinâmica das Abas
-titulos_abas = ["📋 Consulta", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão"]
+# Definição das Abas
+titulos_abas = ["📋 Consulta de Escala", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão"]
 if eh_comando:
     titulos_abas.insert(1, "🎖️ Comandante")
 
 abas = st.tabs(titulos_abas)
 
-# Mapeamento das abas para facilitar a referência
-aba_consulta = abas[0]
+# Indexação das abas para Oficiais e Praças
 if eh_comando:
-    aba_comandante = abas[1]
-    aba_cumprimento = abas[2]
-    aba_estatistica = abas[3]
-    aba_gestao = abas[4]
+    tab_cons, tab_cmdo, tab_cump, tab_esta, tab_gest = abas
 else:
-    aba_cumprimento = abas[1]
-    aba_estatistica = abas[2]
-    aba_gestao = abas[3]
+    tab_cons, tab_cump, tab_esta, tab_gest = abas
 
-# --- ABA CONSULTA ---
-with aba_consulta:
+# --- ABA 0: CONSULTA ---
+with tab_cons:
     data_con = st.date_input("Consultar Data:", datetime.date.today())
     df_total = carregar_dados_db()
     if not df_total.empty:
@@ -146,24 +140,39 @@ with aba_consulta:
                 df_dia['Estado'] = df_dia['cumprido'].map({True: "✅ Cumprida", False: "⚠️ Em Aberto"})
                 st.dataframe(df_dia[['municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Estado']], use_container_width=True, hide_index=True)
 
-# --- ABA COMANDANTE (EXCLUSIVA OFICIAIS) ---
+# --- ABA 1: COMANDANTE (VISÃO TOTAL POR TERRITÓRIO) ---
 if eh_comando:
-    with aba_comandante:
-        st.subheader("🎖️ Visão Geral do Sistema")
+    with tab_cmdo:
+        st.subheader("🎖️ Painel de Comando - Visão Geral")
         df_all = carregar_dados_db()
         if not df_all.empty:
-            df_all['Data'] = df_all['data'].apply(formatar_data_br)
-            df_all['Situação'] = df_all['cumprido'].map({True: "Concluída", False: "Agendada"})
-            st.dataframe(
-                df_all[['Data', 'municipio', 'unidade', 'missao', 'Situação', 'comandante_nome']], 
-                use_container_width=True, 
-                hide_index=True
-            )
+            # Seleção de data opcional para não poluir a tela, ou mostrar tudo
+            filtro_data = st.date_input("Filtrar por Data (Comandante):", datetime.date.today(), key="cmdo_date")
+            
+            for regiao, cidades in territorios.items():
+                df_reg = df_all[(df_all['data'] == filtro_data.strftime("%Y-%m-%d")) & (df_all['municipio'].isin(cidades))]
+                if not df_reg.empty:
+                    st.markdown(f"#### 📍 {regiao}")
+                    
+                    # Preparação dos dados para exibição detalhada
+                    df_reg['Estado'] = df_reg['cumprido'].map({True: "✅ Concluída", False: "📅 Agendada"})
+                    
+                    # Se cumprida, mostra relatório. Se não, mostra objetivo (missao)
+                    df_reg['Relatório/Objetivo'] = df_reg.apply(
+                        lambda x: x['relatorio_resumido'] if x['cumprido'] and x['relatorio_resumido'] else x['missao'], 
+                        axis=1
+                    )
+                    
+                    st.dataframe(
+                        df_reg[['municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Estado', 'Relatório/Objetivo']], 
+                        use_container_width=True, 
+                        hide_index=True
+                    )
         else:
             st.info("Nenhum registro encontrado no sistema.")
 
-# --- ABA CUMPRIMENTO ---
-with aba_cumprimento:
+# --- ABA: CUMPRIMENTO ---
+with tab_cump:
     df_c = carregar_dados_db()
     if not df_c.empty:
         df_c['sel'] = df_c['data'].apply(formatar_data_br) + " | " + df_c['municipio']
@@ -176,7 +185,7 @@ with aba_cumprimento:
             v = c3.text_input("Viatura", d.get('viatura', ''))
             h_e = st.selectbox("Entrada Real", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
             h_s = st.selectbox("Saída Real", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
-            rel = st.text_area("Relatório", d.get('relatorio_resumido', ''))
+            rel = st.text_area("Relatório Resumido", d.get('relatorio_resumido', ''))
             conf = st.checkbox("Confirmar Cumprimento", value=bool(d.get('cumprido', False)))
             if st.form_submit_button("Salvar Registro"):
                 supabase.table("escala_operacional").update({
@@ -186,32 +195,32 @@ with aba_cumprimento:
                 }).eq("id", d['id']).execute()
                 st.success("Dados atualizados!"); st.rerun()
 
-# --- ABA ESTATÍSTICAS ---
-with aba_estatistica:
+# --- ABA: ESTATÍSTICAS ---
+with tab_esta:
     df_est = carregar_dados_db()
     if not df_est.empty:
         st.subheader("📊 Estatísticas Gerais")
         st.bar_chart(df_est['municipio'].value_counts(), horizontal=True)
 
-# --- ABA GESTÃO ---
-with aba_gestao:
+# --- ABA: GESTÃO ---
+with tab_gest:
     if not st.session_state.get("gestao_liberada", False):
         with st.form("f_gest"):
-            if st.form_submit_button("Desbloquear") and st.text_input("Chave:", type="password") == CHAVE_GESTAO:
+            if st.form_submit_button("Desbloquear") and st.text_input("Chave de Comando:", type="password") == CHAVE_GESTAO:
                 st.session_state.gestao_liberada = True; st.rerun()
     else:
         st.button("🔒 Bloquear", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
         col1, col2 = st.columns(2)
         with col1:
-            st.subheader("📝 Agendar")
+            st.subheader("📝 Agendar Missão")
             with st.form("f_nova", clear_on_submit=True):
                 dt = st.date_input("Data")
                 mu = st.selectbox("Cidade", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
                 un = st.selectbox("Unidade", ["CIPE-MA", "CIPT-ES"])
-                h_e = st.selectbox("Entrada", lista_horas)
-                h_s = st.selectbox("Saída", lista_horas)
-                ob = st.text_area("Objetivo")
-                if st.form_submit_button("Confirmar"):
+                h_e = st.selectbox("Entrada Prevista", lista_horas)
+                h_s = st.selectbox("Saída Prevista", lista_horas)
+                ob = st.text_area("Objetivo / Missão")
+                if st.form_submit_button("Confirmar Agendamento"):
                     supabase.table("escala_operacional").insert({
                         "data": str(dt), "municipio": mu, "unidade": un, 
                         "hora_entrada": h_e, "hora_saida": h_s, "missao": ob, 
@@ -219,12 +228,12 @@ with aba_gestao:
                     }).execute()
                     st.rerun()
         with col2:
-            st.subheader("🗑️ Excluir")
+            st.subheader("🗑️ Excluir Registro")
             df_del = carregar_dados_db().sort_values(by='data', ascending=False)
             if not df_del.empty:
                 df_del['txt'] = df_del['data'] + " | " + df_del['municipio']
                 it = st.selectbox("Selecione:", df_del['txt'].tolist())
-                if st.button("Remover"):
+                if st.button("Remover Registro"):
                     id_del = df_del[df_del['txt'] == it]['id'].values[0]
                     supabase.table("escala_operacional").delete().eq("id", id_del).execute()
                     st.rerun()
