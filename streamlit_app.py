@@ -60,7 +60,13 @@ if st.session_state.user_session is None:
     with aba_auth[1]:
         st.info("⚠️ Um link de ativação será enviado ao e-mail informado.")
         with st.form("register_form"):
-            p_g_reg = st.selectbox("Posto/Graduação", ["Cel", "Ten Cel", "Maj", "Cap", "1º Ten", "Subten", "1º Sgt", "2º Sgt", "3º Sgt", "Cb", "Sd"])
+            # LISTA DE POSTOS/GRADUAÇÕES ATUALIZADA
+            lista_postos = [
+                "Cel PM", "Ten Cel PM", "Maj PM", "Cap PM", 
+                "Ten PM", "Asp PM", "Subten PM", "Sgt PM", 
+                "Cb PM", "Sd PM"
+            ]
+            posto_grad = st.selectbox("Posto/Graduação", lista_postos)
             nome_reg = st.text_input("Nome Completo")
             mat_reg = st.text_input("Matrícula")
             st.divider()
@@ -69,10 +75,11 @@ if st.session_state.user_session is None:
             confirm = st.text_input("Confirme a Senha", type="password")
             if st.form_submit_button("Finalizar Cadastro", use_container_width=True):
                 if pass_reg != confirm: st.error("Senhas não coincidem.")
+                elif not nome_reg or not mat_reg: st.error("Preencha Nome e Matrícula.")
                 else:
                     try:
                         supabase.auth.sign_up({"email": email_reg, "password": pass_reg,
-                            "options": {"data": {"posto_grad": p_g_reg, "nome_completo": nome_reg, "matricula": mat_reg}}})
+                            "options": {"data": {"posto_grad": posto_grad, "nome_completo": nome_reg, "matricula": mat_reg}}})
                         st.success("✅ Cadastro solicitado! Verifique seu e-mail.")
                     except Exception as e: st.error(f"Erro: {e}")
     st.stop()
@@ -129,7 +136,7 @@ with menu[1]:
     df_c = carregar_dados_db()
     if not df_c.empty:
         df_c['sel'] = df_c['data'].apply(formatar_data_br) + " | " + df_c['municipio']
-        escolha = st.selectbox("Selecione a Missão para cumprir:", df_c['sel'].tolist())
+        escolha = st.selectbox("Selecione a Missão:", df_c['sel'].tolist())
         d = df_c[df_c['sel'] == escolha].iloc[0]
         with st.form("f_cump"):
             c1, c2, c3 = st.columns(3)
@@ -165,7 +172,7 @@ with menu[2]:
         st.markdown("### 🏙️ Por Cidade")
         st.bar_chart(df_est['municipio'].value_counts(), horizontal=True)
 
-# --- ABA 3: GESTÃO (RESTAURADA COM TODOS OS CAMPOS) ---
+# --- ABA 3: GESTÃO ---
 with menu[3]:
     if not st.session_state.get("gestao_liberada", False):
         with st.form("f_gest"):
@@ -175,9 +182,7 @@ with menu[3]:
                 else: st.error("Chave incorreta.")
     else:
         st.button("🔒 Bloquear Painel", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
-        
         col_gest1, col_gest2 = st.columns(2)
-        
         with col_gest1:
             st.subheader("📝 Agendar Nova Missão")
             with st.form("f_nova", clear_on_submit=True):
@@ -185,20 +190,16 @@ with menu[3]:
                 todas_cidades = sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"])
                 mu = st.selectbox("Município", todas_cidades)
                 un = st.selectbox("Unidade Responsável", ["CIPE-MA", "CIPT-ES"])
-                
-                # CAMPOS RESTAURADOS
                 h_e_ag = st.selectbox("Horário Previsto Entrada", lista_horas)
                 h_s_ag = st.selectbox("Horário Previsto Saída", lista_horas)
                 ob = st.text_area("Objetivo / Missão")
-                
                 if st.form_submit_button("Confirmar Agendamento"):
                     supabase.table("escala_operacional").insert({
                         "data": str(dt), "municipio": mu, "unidade": un, 
                         "missao": ob, "hora_entrada": h_e_ag, "hora_saida": h_s_ag, 
                         "criado_por": user_email
                     }).execute()
-                    st.success("Missão agendada com sucesso!"); st.rerun()
-        
+                    st.success("Missão agendada!"); st.rerun()
         with col_gest2:
             st.subheader("🗑️ Excluir Registro")
             df_del = carregar_dados_db().sort_values(by='data', ascending=False)
@@ -211,7 +212,7 @@ with menu[3]:
                     st.success("Registro removido!"); st.rerun()
 
         st.markdown("---")
-        st.subheader("🕵️ Histórico e Auditoria")
+        st.subheader("🕵️ Auditoria")
         df_audit = carregar_dados_db().sort_values(by='data', ascending=False)
         if not df_audit.empty:
             df_audit['Data_Formatada'] = df_audit['data'].apply(formatar_data_br)
