@@ -33,25 +33,31 @@ st.markdown("""
 if "user_session" not in st.session_state:
     st.session_state.user_session = None
 
-# Recuperar sessão ativa do Supabase
+# Tenta recuperar sessão ativa de forma robusta
 try:
-    session = supabase.auth.get_session()
-    st.session_state.user_session = session.user if session else None
+    session_res = supabase.auth.get_session()
+    if session_res and session_res.session:
+        st.session_state.user_session = session_res.user
+    else:
+        st.session_state.user_session = None
 except:
     st.session_state.user_session = None
 
+# TELA DE ACESSO (Só aparece se não estiver logado)
 if not st.session_state.user_session:
     aba_auth = st.tabs(["🔐 Entrar", "📝 Cadastrar-se"])
     
     with aba_auth[0]:
         with st.form("login_form"):
-            email = st.text_input("E-mail") 
-            senha = st.text_input("Senha", type="password")
+            email_input = st.text_input("E-mail") 
+            senha_input = st.text_input("Senha", type="password")
             if st.form_submit_button("Acessar Sistema", use_container_width=True):
                 try:
-                    res = supabase.auth.sign_in_with_password({"email": email, "password": senha})
-                    st.session_state.user_session = res.user
-                    st.rerun()
+                    res = supabase.auth.sign_in_with_password({"email": email_input, "password": senha_input})
+                    if res.user:
+                        st.session_state.user_session = res.user
+                        st.success("Acesso autorizado! Carregando...")
+                        st.rerun()
                 except Exception as e:
                     st.error(f"Erro no login: {e}")
 
@@ -60,14 +66,14 @@ if not st.session_state.user_session:
         with st.form("register_form"):
             posto_grad = st.selectbox("Posto/Graduação", ["Cel", "Ten Cel", "Maj", "Cap", "1º Ten", "Subten", "1º Sgt", "2º Sgt", "3º Sgt", "Cb", "Sd"])
             nome_completo = st.text_input("Nome Completo")
-            matricula = st.text_input("Matrícula (ex: 12.345-6)")
+            matricula_input = st.text_input("Matrícula (ex: 12.345-6)")
             st.divider()
             new_email = st.text_input("E-mail para Cadastro")
             new_senha = st.text_input("Crie uma Senha (mín. 6 caracteres)", type="password")
             confirm = st.text_input("Confirme a Senha", type="password")
             
             if st.form_submit_button("Finalizar Cadastro", use_container_width=True):
-                if not nome_completo or not matricula:
+                if not nome_completo or not matricula_input:
                     st.error("Preencha Nome e Matrícula.")
                 elif new_senha != confirm:
                     st.error("As senhas não coincidem.")
@@ -78,14 +84,14 @@ if not st.session_state.user_session:
                         supabase.auth.sign_up({
                             "email": new_email, 
                             "password": new_senha,
-                            "options": {"data": {"posto_grad": posto_grad, "nome_completo": nome_completo, "matricula": matricula}}
+                            "options": {"data": {"posto_grad": posto_grad, "nome_completo": nome_completo, "matricula": matricula_input}}
                         })
-                        st.success("Cadastro realizado! Já pode tentar o login.")
+                        st.success("Cadastro realizado! Mude para a aba 'Entrar' para acessar.")
                     except Exception as e:
                         st.error(f"Erro ao cadastrar: {e}")
     st.stop()
 
-# --- 4. VARIÁVEIS DE SESSÃO E FUNÇÕES ---
+# --- 4. VARIÁVEIS DE SESSÃO E FUNÇÕES (SÓ RODA SE LOGADO) ---
 user_email = st.session_state.user_session.email
 user_meta = st.session_state.user_session.user_metadata
 p_g = user_meta.get("posto_grad", "")
@@ -126,7 +132,7 @@ with menu[0]:
             st.dataframe(df_dia[['municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Estado']], use_container_width=True, hide_index=True)
         else: st.info("Sem missões para esta data.")
 
-# --- ABA 1: CUMPRIMENTO (AUTO-PREENCHIMENTO) ---
+# --- ABA 1: CUMPRIMENTO (AUTO-PREENCHIMENTO INTELIGENTE) ---
 with menu[1]:
     df_c = carregar_dados_db()
     if not df_c.empty:
@@ -136,7 +142,7 @@ with menu[1]:
         
         with st.form("f_cump"):
             c1, c2, c3 = st.columns(3)
-            # Preenche automaticamente com os dados de quem está logado se estiver vazio
+            # Preenchimento automático baseado no perfil logado
             n = c1.text_input("Comandante", d.get('comandante_nome') or f"{p_g} {nome_user}")
             m = c2.text_input("Matrícula", d.get('comandante_matricula') or mat_user)
             v = c3.text_input("Vtr", d.get('viatura', ''))
@@ -170,7 +176,9 @@ with menu[3]:
         with st.form("f_lock"):
             ch = st.text_input("Chave de Comando:", type="password")
             if st.form_submit_button("Desbloquear"):
-                if ch == CHAVE_GESTAO: st.session_state.gestao_liberada = True; st.rerun()
+                if ch == CHAVE_GESTAO: 
+                    st.session_state.gestao_liberada = True
+                    st.rerun()
                 else: st.error("Chave incorreta.")
     else:
         st.button("🔒 Bloquear Painel", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
