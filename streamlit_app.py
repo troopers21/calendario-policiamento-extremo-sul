@@ -84,8 +84,7 @@ user_meta = st.session_state.user_session.user_metadata
 def carregar_dados_db():
     try:
         response = supabase.table("escala_operacional").select("*").execute()
-        df = pd.DataFrame(response.data)
-        return df
+        return pd.DataFrame(response.data)
     except: return pd.DataFrame()
 
 def formatar_data_br(data_iso):
@@ -94,7 +93,6 @@ def formatar_data_br(data_iso):
 
 lista_horas = [f"{h:02d}:00" for h in range(24)]
 
-# Definição dos Territórios (Restaurado)
 territorios = {
     "Costa do Descobrimento": ["Porto Seguro", "Eunápolis", "Santa Cruz Cabrália", "Belmonte", "Itapebi", "Itagimirim", "Guaratinga", "Itabela"],
     "Costa das Baleias": ["Teixeira de Freitas", "Itamaraju", "Jucuruçu", "Medeiros Neto", "Itanhém", "Lajedão", "Vereda", "Ibirapuã", "Alcobaça", "Prado", "Caravelas", "Mucuri", "Nova Viçosa"]
@@ -111,12 +109,11 @@ with st.sidebar:
 
 menu = st.tabs(["📋 Consulta de Escala", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão"])
 
-# --- ABA 0: CONSULTA (Restaurado por Território) ---
+# --- ABA 0: CONSULTA ---
 with menu[0]:
     data_con = st.date_input("Consultar Data:", datetime.date.today())
     df_total = carregar_dados_db()
     existem_missoes = False
-    
     if not df_total.empty:
         for regiao, cidades in territorios.items():
             df_dia = df_total[(df_total['data'] == data_con.strftime("%Y-%m-%d")) & (df_total['municipio'].isin(cidades))]
@@ -125,9 +122,7 @@ with menu[0]:
                 st.markdown(f"#### 📍 {regiao}")
                 df_dia['Estado'] = df_dia['cumprido'].map({True: "✅ Cumprida", False: "⚠️ Em Aberto"})
                 st.dataframe(df_dia[['municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Estado']], use_container_width=True, hide_index=True)
-    
-    if not existem_missoes:
-        st.info(f"Sem missões agendadas para {data_con.strftime('%d/%m/%Y')}.")
+    if not existem_missoes: st.info(f"Sem missões para {data_con.strftime('%d/%m/%Y')}.")
 
 # --- ABA 1: CUMPRIMENTO ---
 with menu[1]:
@@ -136,18 +131,15 @@ with menu[1]:
         df_c['sel'] = df_c['data'].apply(formatar_data_br) + " | " + df_c['municipio']
         escolha = st.selectbox("Selecione a Missão:", df_c['sel'].tolist())
         d = df_c[df_c['sel'] == escolha].iloc[0]
-        
         with st.form("f_cump"):
             c1, c2, c3 = st.columns(3)
             n = c1.text_input("Comandante", d.get('comandante_nome') or f"{user_meta.get('posto_grad')} {user_meta.get('nome_completo')}")
             m = c2.text_input("Matrícula", d.get('comandante_matricula') or user_meta.get('matricula'))
             v = c3.text_input("Viatura", d.get('viatura', ''))
-            
             h_e = st.selectbox("Entrada", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
             h_s = st.selectbox("Saída", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
             rel = st.text_area("Relatório Resumido", d.get('relatorio_resumido', ''))
             conf = st.checkbox("Confirmar Cumprimento", value=bool(d.get('cumprido', False)))
-            
             if st.form_submit_button("Salvar Registro"):
                 supabase.table("escala_operacional").update({
                     "comandante_nome": n, "comandante_matricula": m, "viatura": v,
@@ -156,7 +148,7 @@ with menu[1]:
                 }).eq("id", d['id']).execute()
                 st.success("Dados atualizados!"); st.rerun()
 
-# --- ABA 2: ESTATÍSTICAS (Restaurado Completo) ---
+# --- ABA 2: ESTATÍSTICAS ---
 with menu[2]:
     st.subheader("📊 Análise de Dados Estratégicos")
     df_est = carregar_dados_db()
@@ -164,11 +156,9 @@ with menu[2]:
         df_est['data_dt'] = pd.to_datetime(df_est['data'])
         df_est['Mês/Ano'] = df_est['data_dt'].dt.strftime('%m/%Y')
         total_geral = len(df_est)
-        
         mapeamento = {cidade: terr for terr, cidades in territorios.items() for cidade in cidades}
         df_est['Território'] = df_est['municipio'].map(mapeamento)
         
-        # Estatística Mensal
         st.markdown("### 📅 Missões por Mês")
         df_mensal = df_est['Mês/Ano'].value_counts().reset_index()
         df_mensal.columns = ['Mês', 'Qtd']
@@ -177,7 +167,6 @@ with menu[2]:
         col_m1.dataframe(df_mensal, hide_index=True)
         col_m2.line_chart(df_est['Mês/Ano'].value_counts())
         
-        # Estatística por Território
         st.markdown("---")
         st.markdown("### 🌎 Por Território")
         df_terr = df_est['Território'].value_counts().reset_index()
@@ -187,14 +176,12 @@ with menu[2]:
         col_t1.dataframe(df_terr, hide_index=True)
         col_t2.bar_chart(df_est['Território'].value_counts())
         
-        # Estatística por Cidade
         st.markdown("---")
         st.markdown("### 🏙️ Por Cidade")
         st.bar_chart(df_est['municipio'].value_counts(), horizontal=True)
-    else:
-        st.info("Aguardando registros para gerar gráficos.")
+    else: st.info("Aguardando registros.")
 
-# --- ABA 3: GESTÃO ---
+# --- ABA 3: GESTÃO (COM EXCLUSÃO FUNCIONAL) ---
 with menu[3]:
     if not st.session_state.get("gestao_liberada", False):
         with st.form("f_gest"):
@@ -205,9 +192,11 @@ with menu[3]:
     else:
         st.button("🔒 Bloquear Painel", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
         
-        # Cadastro de Missão
-        with st.expander("➕ Agendar Nova Missão"):
-            with st.form("f_nova"):
+        col_gest1, col_gest2 = st.columns(2)
+        
+        with col_gest1:
+            st.subheader("📝 Agendar Missão")
+            with st.form("f_nova", clear_on_submit=True):
                 dt = st.date_input("Data")
                 todas_cidades = sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"])
                 mu = st.selectbox("Cidade", todas_cidades)
@@ -215,21 +204,34 @@ with menu[3]:
                 h_e_ag = st.selectbox("Entrada", lista_horas)
                 h_s_ag = st.selectbox("Saída", lista_horas)
                 ob = st.text_area("Objetivo da Missão")
-                if st.form_submit_button("Agendar"):
+                if st.form_submit_button("Confirmar Agendamento"):
                     supabase.table("escala_operacional").insert({
                         "data": str(dt), "municipio": mu, "unidade": un, "missao": ob,
                         "hora_entrada": h_e_ag, "hora_saida": h_s_ag, "criado_por": user_email
                     }).execute()
                     st.success("Missão agendada!"); st.rerun()
         
-        # Auditoria (Restaurado)
-        st.subheader("🕵️ Histórico e Auditoria")
+        with col_gest2:
+            st.subheader("🗑️ Excluir Registro")
+            df_del = carregar_dados_db().sort_values(by='data', ascending=False)
+            if not df_del.empty:
+                df_del['txt_del'] = df_del['data'].apply(formatar_data_br) + " | " + df_del['municipio'] + " (" + df_del['unidade'] + ")"
+                item_excluir = st.selectbox("Selecione o registro para APAGAR:", df_del['txt_del'].tolist())
+                id_excluir = df_del[df_del['txt_del'] == item_excluir]['id'].values[0]
+                
+                if st.button("❌ APAGAR DEFINITIVAMENTE", use_container_width=True):
+                    try:
+                        supabase.table("escala_operacional").delete().eq("id", id_excluir).execute()
+                        st.success("Registro excluído com sucesso!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao excluir: {e}")
+            else:
+                st.write("Nenhum registro encontrado para exclusão.")
+
+        st.markdown("---")
+        st.subheader("🕵️ Auditoria Completa")
         df_audit = carregar_dados_db().sort_values(by='data', ascending=False)
         if not df_audit.empty:
             df_audit['Data'] = df_audit['data'].apply(formatar_data_br)
             st.dataframe(df_audit[['Data', 'municipio', 'unidade', 'criado_por', 'editado_por', 'ultima_edicao']], use_container_width=True, hide_index=True)
-            
-            st.markdown("---")
-            if st.button("🗑️ Excluir registro selecionado"):
-                # Lógica de exclusão rápida aqui se necessário
-                pass
