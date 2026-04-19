@@ -60,30 +60,54 @@ if st.session_state.user_session is None:
     with aba_auth[1]:
         st.info("⚠️ Um link de ativação será enviado ao e-mail informado.")
         with st.form("register_form"):
+            # CAMPOS DE PERFIL ATUALIZADOS
             lista_postos = ["Cel PM", "Ten Cel PM", "Maj PM", "Cap PM", "Ten PM", "Asp PM", "Subten PM", "Sgt PM", "Cb PM", "Sd PM"]
-            posto_grad = st.selectbox("Posto/Graduação", lista_postos)
-            nome_reg = st.text_input("Nome Completo")
-            mat_reg = st.text_input("Matrícula")
+            lista_unidades_cadastro = ["CPR-ES", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"]
+            
+            col_reg1, col_reg2 = st.columns(2)
+            with col_reg1:
+                posto_grad = st.selectbox("Posto/Graduação", lista_postos)
+                nome_reg = st.text_input("Nome Completo")
+            with col_reg2:
+                unidade_reg = st.selectbox("Unidade", lista_unidades_cadastro)
+                mat_reg = st.text_input("Matrícula")
+            
             st.divider()
             email_reg = st.text_input("E-mail")
             pass_reg = st.text_input("Senha (mín. 6 caracteres)", type="password")
             confirm = st.text_input("Confirme a Senha", type="password")
+            
             if st.form_submit_button("Finalizar Cadastro", use_container_width=True):
-                if pass_reg != confirm: st.error("Senhas não coincidem.")
+                if pass_reg != confirm: 
+                    st.error("Senhas não coincidem.")
+                elif not nome_reg or not mat_reg: 
+                    st.error("Preencha todos os campos obrigatórios.")
                 else:
                     try:
-                        supabase.auth.sign_up({"email": email_reg, "password": pass_reg,
-                            "options": {"data": {"posto_grad": posto_grad, "nome_completo": nome_reg, "matricula": mat_reg}}})
-                        st.success("✅ Cadastro solicitado! Verifique seu e-mail.")
-                    except Exception as e: st.error(f"Erro: {e}")
+                        supabase.auth.sign_up({
+                            "email": email_reg, 
+                            "password": pass_reg,
+                            "options": {
+                                "data": {
+                                    "posto_grad": posto_grad, 
+                                    "nome_completo": nome_reg, 
+                                    "matricula": mat_reg,
+                                    "unidade": unidade_reg
+                                }
+                            }
+                        })
+                        st.success("✅ Cadastro solicitado! Verifique seu e-mail para ativar a conta.")
+                    except Exception as e: 
+                        st.error(f"Erro: {e}")
     st.stop()
 
-# --- 4. VARIÁVEIS E FUNÇÕES GERAIS ---
+# --- 4. VARIÁVEIS DO USUÁRIO LOGADO ---
 user_email = st.session_state.user_session.email
 user_meta = st.session_state.user_session.user_metadata
 p_g_user = user_meta.get("posto_grad", "")
 nome_user = user_meta.get("nome_completo", "Usuário")
 mat_user = user_meta.get("matricula", "")
+unidade_user = user_meta.get("unidade", "")
 
 # Lógica de Acesso à aba Comandante (Oficiais)
 postos_comando = ["Cel PM", "Ten Cel PM", "Maj PM", "Cap PM", "Ten PM"]
@@ -109,7 +133,7 @@ territorios = {
 # --- 5. INTERFACE SIDEBAR ---
 with st.sidebar:
     st.markdown(f"### 👮 {p_g_user} {nome_user}")
-    st.caption(f"Matrícula: {mat_user}")
+    st.caption(f"Unidade: {unidade_user} | Matrícula: {mat_user}")
     if st.button("Sair"):
         supabase.auth.sign_out()
         st.session_state.user_session = None
@@ -139,34 +163,28 @@ with tab_cons:
                 df_dia['Estado'] = df_dia['cumprido'].map({True: "✅ Cumprida", False: "⚠️ Em Aberto"})
                 st.dataframe(df_dia[['municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Estado']], use_container_width=True, hide_index=True)
 
-# --- ABA 1: COMANDANTE (VISÃO TOTAL SEM FILTRO DE DATA) ---
+# --- ABA 1: COMANDANTE (VISÃO TOTAL) ---
 if eh_comando:
     with tab_cmdo:
         st.subheader("🎖️ Painel de Comando - Todos os Registros")
         df_all = carregar_dados_db()
         if not df_all.empty:
-            # Ordenar por data (mais recentes primeiro)
             df_all = df_all.sort_values(by="data", ascending=False)
-            
             for regiao, cidades in territorios.items():
                 df_reg = df_all[df_all['municipio'].isin(cidades)]
                 if not df_reg.empty:
                     with st.expander(f"📍 {regiao}", expanded=True):
-                        # Formatação para exibição
                         df_reg['Data'] = df_reg['data'].apply(formatar_data_br)
                         df_reg['Situação'] = df_reg['cumprido'].map({True: "✅ Concluída", False: "📅 Agendada"})
                         df_reg['Relatório/Objetivo'] = df_reg.apply(
                             lambda x: x['relatorio_resumido'] if x['cumprido'] and x['relatorio_resumido'] else x['missao'], 
                             axis=1
                         )
-                        
                         st.dataframe(
                             df_reg[['Data', 'municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Situação', 'Relatório/Objetivo']], 
-                            use_container_width=True, 
-                            hide_index=True
+                            use_container_width=True, hide_index=True
                         )
-        else:
-            st.info("Nenhum registro encontrado no sistema.")
+        else: st.info("Sem registros.")
 
 # --- ABA: CUMPRIMENTO ---
 with tab_cump:
@@ -191,47 +209,47 @@ with tab_cump:
                     "hora_entrada": h_e, "hora_saida": h_s, "relatorio_resumido": rel, "cumprido": conf,
                     "editado_por": user_email, "ultima_edicao": datetime.datetime.now().isoformat()
                 }).eq("id", d['id']).execute()
-                st.success("Dados atualizados!"); st.rerun()
+                st.success("Atualizado!"); st.rerun()
 
 # --- ABA: ESTATÍSTICAS ---
 with tab_esta:
     df_est = carregar_dados_db()
     if not df_est.empty:
-        st.subheader("📊 Estatísticas Gerais")
+        st.subheader("📊 Estatísticas por Cidade")
         st.bar_chart(df_est['municipio'].value_counts(), horizontal=True)
 
 # --- ABA: GESTÃO ---
 with tab_gest:
     if not st.session_state.get("gestao_liberada", False):
         with st.form("f_gest"):
-            if st.form_submit_button("Desbloquear") and st.text_input("Chave de Comando:", type="password") == CHAVE_GESTAO:
+            if st.form_submit_button("Desbloquear") and st.text_input("Chave:", type="password") == CHAVE_GESTAO:
                 st.session_state.gestao_liberada = True; st.rerun()
     else:
         st.button("🔒 Bloquear", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
         col1, col2 = st.columns(2)
         with col1:
-            st.subheader("📝 Agendar Missão")
+            st.subheader("📝 Agendar")
             with st.form("f_nova", clear_on_submit=True):
                 dt = st.date_input("Data")
                 mu = st.selectbox("Cidade", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
-                un = st.selectbox("Unidade", ["CIPE-MA", "CIPT-ES"])
+                un = st.selectbox("Unidade Responsável", ["CPR-ES", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
                 h_e = st.selectbox("Entrada Prevista", lista_horas)
                 h_s = st.selectbox("Saída Prevista", lista_horas)
-                ob = st.text_area("Objetivo / Missão")
-                if st.form_submit_button("Confirmar Agendamento"):
+                ob = st.text_area("Objetivo")
+                if st.form_submit_button("Confirmar"):
                     supabase.table("escala_operacional").insert({
                         "data": str(dt), "municipio": mu, "unidade": un, 
                         "hora_entrada": h_e, "hora_saida": h_s, "missao": ob, 
                         "criado_por": user_email
                     }).execute()
-                    st.success("Missão agendada!"); st.rerun()
+                    st.rerun()
         with col2:
-            st.subheader("🗑️ Excluir Registro")
+            st.subheader("🗑️ Excluir")
             df_del = carregar_dados_db().sort_values(by='data', ascending=False)
             if not df_del.empty:
                 df_del['txt'] = df_del['data'] + " | " + df_del['municipio']
                 it = st.selectbox("Selecione:", df_del['txt'].tolist())
-                if st.button("Remover Registro"):
+                if st.button("Remover"):
                     id_del = df_del[df_del['txt'] == it]['id'].values[0]
                     supabase.table("escala_operacional").delete().eq("id", id_del).execute()
                     st.rerun()
