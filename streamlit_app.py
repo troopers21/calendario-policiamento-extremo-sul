@@ -122,7 +122,6 @@ if eh_comando:
 
 abas = st.tabs(titulos_abas)
 
-# Indexação das abas para Oficiais e Praças
 if eh_comando:
     tab_cons, tab_cmdo, tab_cump, tab_esta, tab_gest = abas
 else:
@@ -140,34 +139,32 @@ with tab_cons:
                 df_dia['Estado'] = df_dia['cumprido'].map({True: "✅ Cumprida", False: "⚠️ Em Aberto"})
                 st.dataframe(df_dia[['municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Estado']], use_container_width=True, hide_index=True)
 
-# --- ABA 1: COMANDANTE (VISÃO TOTAL POR TERRITÓRIO) ---
+# --- ABA 1: COMANDANTE (VISÃO TOTAL SEM FILTRO DE DATA) ---
 if eh_comando:
     with tab_cmdo:
-        st.subheader("🎖️ Painel de Comando - Visão Geral")
+        st.subheader("🎖️ Painel de Comando - Todos os Registros")
         df_all = carregar_dados_db()
         if not df_all.empty:
-            # Seleção de data opcional para não poluir a tela, ou mostrar tudo
-            filtro_data = st.date_input("Filtrar por Data (Comandante):", datetime.date.today(), key="cmdo_date")
+            # Ordenar por data (mais recentes primeiro)
+            df_all = df_all.sort_values(by="data", ascending=False)
             
             for regiao, cidades in territorios.items():
-                df_reg = df_all[(df_all['data'] == filtro_data.strftime("%Y-%m-%d")) & (df_all['municipio'].isin(cidades))]
+                df_reg = df_all[df_all['municipio'].isin(cidades)]
                 if not df_reg.empty:
-                    st.markdown(f"#### 📍 {regiao}")
-                    
-                    # Preparação dos dados para exibição detalhada
-                    df_reg['Estado'] = df_reg['cumprido'].map({True: "✅ Concluída", False: "📅 Agendada"})
-                    
-                    # Se cumprida, mostra relatório. Se não, mostra objetivo (missao)
-                    df_reg['Relatório/Objetivo'] = df_reg.apply(
-                        lambda x: x['relatorio_resumido'] if x['cumprido'] and x['relatorio_resumido'] else x['missao'], 
-                        axis=1
-                    )
-                    
-                    st.dataframe(
-                        df_reg[['municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Estado', 'Relatório/Objetivo']], 
-                        use_container_width=True, 
-                        hide_index=True
-                    )
+                    with st.expander(f"📍 {regiao}", expanded=True):
+                        # Formatação para exibição
+                        df_reg['Data'] = df_reg['data'].apply(formatar_data_br)
+                        df_reg['Situação'] = df_reg['cumprido'].map({True: "✅ Concluída", False: "📅 Agendada"})
+                        df_reg['Relatório/Objetivo'] = df_reg.apply(
+                            lambda x: x['relatorio_resumido'] if x['cumprido'] and x['relatorio_resumido'] else x['missao'], 
+                            axis=1
+                        )
+                        
+                        st.dataframe(
+                            df_reg[['Data', 'municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Situação', 'Relatório/Objetivo']], 
+                            use_container_width=True, 
+                            hide_index=True
+                        )
         else:
             st.info("Nenhum registro encontrado no sistema.")
 
@@ -175,6 +172,7 @@ if eh_comando:
 with tab_cump:
     df_c = carregar_dados_db()
     if not df_c.empty:
+        df_c = df_c.sort_values(by="data", ascending=False)
         df_c['sel'] = df_c['data'].apply(formatar_data_br) + " | " + df_c['municipio']
         escolha = st.selectbox("Selecione a Missão:", df_c['sel'].tolist())
         d = df_c[df_c['sel'] == escolha].iloc[0]
@@ -226,7 +224,7 @@ with tab_gest:
                         "hora_entrada": h_e, "hora_saida": h_s, "missao": ob, 
                         "criado_por": user_email
                     }).execute()
-                    st.rerun()
+                    st.success("Missão agendada!"); st.rerun()
         with col2:
             st.subheader("🗑️ Excluir Registro")
             df_del = carregar_dados_db().sort_values(by='data', ascending=False)
