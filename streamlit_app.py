@@ -61,10 +61,18 @@ if st.session_state.user_session is None:
             e_reg, p_reg = st.text_input("E-mail"), st.text_input("Senha", type="password")
             if st.form_submit_button("Finalizar Cadastro"):
                 try:
+                    # LÓGICA ATUALIZADA: Retirado "📋 Consulta de Escala" para Praças
+                    if posto_grad in ["Subten PM", "Sgt PM", "Cb PM", "Sd PM"]:
+                        perms_iniciais = ["✅ Cumprimento"]
+                    else:
+                        perms_iniciais = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas"]
+
                     supabase.auth.sign_up({"email": e_reg, "password": p_reg, "options": {"data": {"posto_grad": posto_grad, "nome_completo": nome_reg, "matricula": mat_reg, "unidade": unidade_reg}}})
-                    # Cria entrada básica de permissão
-                    supabase.table("permissoes_usuarios").insert({"matricula": mat_reg, "abas_permitidas": ["📋 Consulta de Escala"]}).execute()
-                    st.success("✅ Verifique seu e-mail!")
+                    
+                    # Salva as permissões iniciais na tabela
+                    supabase.table("permissoes_usuarios").upsert({"matricula": mat_reg, "abas_permitidas": perms_iniciais}).execute()
+                    
+                    st.success("✅ Cadastro solicitado! Verifique seu e-mail para ativar.")
                 except Exception as e: st.error(f"Erro: {e}")
     st.stop()
 
@@ -75,21 +83,23 @@ nome_user = user_meta.get("nome_completo", "Usuário")
 mat_user = user_meta.get("matricula", "")
 unidade_user = user_meta.get("unidade", "")
 
-# Busca permissões no banco de dados
+# Função para buscar permissões no banco
 def buscar_permissoes(matricula):
     try:
         res = supabase.table("permissoes_usuarios").select("abas_permitidas").eq("matricula", matricula).execute()
         if res.data:
             return res.data[0]["abas_permitidas"]
     except: pass
-    return ["📋 Consulta de Escala"] # Padrão
+    return ["✅ Cumprimento"] # Padrão mínimo caso falhe
 
 abas_liberadas = buscar_permissoes(mat_user)
 eh_admin = mat_user == MATRICULA_ADMIN
 
 def carregar_dados_db():
-    res = supabase.table("escala_operacional").select("*").execute()
-    return pd.DataFrame(res.data)
+    try:
+        res = supabase.table("escala_operacional").select("*").execute()
+        return pd.DataFrame(res.data)
+    except: return pd.DataFrame()
 
 territorios = {
     "Costa do Descobrimento": ["Porto Seguro", "Eunápolis", "Santa Cruz Cabrália", "Belmonte", "Itapebi", "Itagimirim", "Guaratinga", "Itabela"],
@@ -102,21 +112,19 @@ with st.sidebar:
     if st.button("Sair"):
         supabase.auth.sign_out(); st.session_state.user_session = None; st.rerun()
 
-# Filtragem dinâmica de abas
+# Abas permitidas para o usuário logado
 abas_possiveis = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão"]
 if eh_admin: abas_possiveis.append("🔑 Admin")
 
-# Só mostra o que está no banco de dados para aquele usuário
 titulos_finais = [a for a in abas_possiveis if a in abas_liberadas]
-if not titulos_finais: titulos_finais = ["📋 Consulta de Escala"]
+if not titulos_finais: titulos_finais = ["✅ Cumprimento"]
 
 tabs = st.tabs(titulos_finais)
 
-# Mapeamento de conteúdo
 for i, titulo in enumerate(titulos_finais):
     with tabs[i]:
         if titulo == "📋 Consulta de Escala":
-            dt_c = st.date_input("Data:", datetime.date.today())
+            dt_c = st.date_input("Data:", datetime.date.today(), key="dt_cons")
             df = carregar_dados_db()
             if not df.empty:
                 for r, cidades in territorios.items():
@@ -128,60 +136,57 @@ for i, titulo in enumerate(titulos_finais):
 
         elif titulo == "🎖️ Comandante":
             df_all = carregar_dados_db().sort_values(by="data", ascending=False)
-            for r, cidades in territorios.items():
-                df_r = df_all[df_all['municipio'].isin(cidades)]
-                if not df_r.empty:
-                    with st.expander(f"📍 {r}"):
-                        st.dataframe(df_r, use_container_width=True, hide_index=True)
+            if not df_all.empty:
+                for r, cidades in territorios.items():
+                    df_r = df_all[df_all['municipio'].isin(cidades)]
+                    if not df_r.empty:
+                        with st.expander(f"📍 {r}"):
+                            st.dataframe(df_r, use_container_width=True, hide_index=True)
 
         elif titulo == "✅ Cumprimento":
             df_c = carregar_dados_db().sort_values(by="data", ascending=False)
             if not df_c.empty:
                 df_c['sel'] = df_c['data'] + " | " + df_c['municipio']
-                it = st.selectbox("Missão:", df_c['sel'].tolist())
+                it = st.selectbox("Selecione a Missão:", df_c['sel'].tolist())
                 d = df_c[df_c['sel'] == it].iloc[0]
-                with st.form("f_c"):
-                    rel = st.text_area("Relatório", d.get('relatorio_resumido', ''))
-                    conf = st.checkbox("Cumprido", value=bool(d.get('cumprido')))
-                    if st.form_submit_button("Salvar"):
-                        supabase.table("escala_operacional").update({"relatorio_resumido": rel, "cumprido": conf}).eq("id", d['id']).execute()
-                        st.rerun()
+                with st.form("f_cump_real"):
+                    n_cmt = st.text_input("Comandante", d.get('comandante_nome') or f"{p_g_user} {nome_user}")
+                    rel = st.text_area("Relatório resumido", d.get('relatorio_resumido', ''))
+                    conf = st.checkbox("Confirmar Cumprimento", value=bool(d.get('cumprido')))
+                    if st.form_submit_button("Salvar Cumprimento"):
+                        supabase.table("escala_operacional").update({"comandante_nome": n_cmt, "relatorio_resumido": rel, "cumprido": conf, "ultima_edicao": datetime.datetime.now().isoformat()}).eq("id", d['id']).execute()
+                        st.success("Salvo!"); st.rerun()
 
         elif titulo == "📊 Estatísticas":
             df_e = carregar_dados_db()
             if not df_e.empty: st.bar_chart(df_e['municipio'].value_counts())
 
         elif titulo == "⚙️ Gestão":
-            if st.text_input("Chave:", type="password") == CHAVE_GESTAO:
-                with st.form("f_n"):
-                    dt = st.date_input("Data")
-                    mu = st.selectbox("Cidade", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
-                    un = st.selectbox("Unidade", ["CPR-ES", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
+            if st.text_input("Chave de Gestão:", type="password") == CHAVE_GESTAO:
+                with st.form("f_gest_nova"):
+                    dt_g = st.date_input("Data")
+                    mu_g = st.selectbox("Cidade", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
+                    un_g = st.selectbox("Unidade", ["CPR-ES", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
+                    miss = st.text_area("Missão")
                     if st.form_submit_button("Agendar"):
-                        supabase.table("escala_operacional").insert({"data": str(dt), "municipio": mu, "unidade": un}).execute()
+                        supabase.table("escala_operacional").insert({"data": str(dt_g), "municipio": mu_g, "unidade": un_g, "missao": miss}).execute()
                         st.rerun()
 
         elif titulo == "🔑 Admin" and eh_admin:
-            st.subheader("Controle de Acesso por Usuário")
+            st.subheader("Gerenciar Permissões de Acesso")
             try:
-                # Lista usuários da View
                 res_u = supabase.table("lista_usuarios_admin").select("*").execute()
                 if res_u.data:
-                    df_u = pd.DataFrame(res_u.data)
-                    for _, row in df_u.iterrows():
-                        with st.expander(f"👤 {row['nome_completo']} ({row['matricula']})"):
-                            # Busca permissões atuais deste usuário específico
-                            perm_atual = buscar_permissoes(row['matricula'])
-                            novas_perms = st.multiselect(
-                                f"Abas para {row['matricula']}:",
+                    for user in res_u.data:
+                        with st.expander(f"👤 {user['nome_completo']} ({user['matricula']}) - {user['posto_grad']}"):
+                            p_atual = buscar_permissoes(user['matricula'])
+                            novas_p = st.multiselect(
+                                "Abas Permitidas:",
                                 ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão", "🔑 Admin"],
-                                default=perm_atual,
-                                key=f"perm_{row['matricula']}"
+                                default=p_atual,
+                                key=f"p_{user['matricula']}"
                             )
-                            if st.button("Atualizar Permissões", key=f"btn_{row['matricula']}"):
-                                supabase.table("permissoes_usuarios").upsert({
-                                    "matricula": row['matricula'],
-                                    "abas_permitidas": novas_perms
-                                }).execute()
-                                st.success("Atualizado!")
+                            if st.button("Salvar Acessos", key=f"b_{user['matricula']}"):
+                                supabase.table("permissoes_usuarios").upsert({"matricula": user['matricula'], "abas_permitidas": novas_p}).execute()
+                                st.success(f"Acessos de {user['matricula']} atualizados!")
             except Exception as e: st.error(f"Erro: {e}")
