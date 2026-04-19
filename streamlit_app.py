@@ -124,21 +124,16 @@ with menu[0]:
                 df_dia['Estado'] = df_dia['cumprido'].map({True: "✅ Cumprida", False: "⚠️ Em Aberto"})
                 st.dataframe(df_dia[['municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Estado']], use_container_width=True, hide_index=True)
 
-# --- ABA 1: COMANDANTE (Restaurada) ---
+# --- ABA 1: COMANDANTE ---
 with menu[1]:
     st.subheader("🎖️ Minhas Missões")
     df_cmt = carregar_dados_db()
     if not df_cmt.empty:
-        # Filtra onde o nome ou matrícula do usuário logado aparece como comandante
-        minhas_missoes = df_cmt[
-            (df_cmt['comandante_nome'].str.contains(nome_user, case=False, na=False)) | 
-            (df_cmt['comandante_matricula'] == mat_user)
-        ]
+        minhas_missoes = df_cmt[(df_cmt['comandante_nome'].str.contains(nome_user, case=False, na=False)) | (df_cmt['comandante_matricula'] == mat_user)]
         if not minhas_missoes.empty:
             minhas_missoes['Data'] = minhas_missoes['data'].apply(formatar_data_br)
             st.dataframe(minhas_missoes[['Data', 'municipio', 'unidade', 'viatura', 'cumprido']], use_container_width=True, hide_index=True)
-        else:
-            st.info("Você ainda não foi registrado como comandante em nenhuma missão cumprida.")
+        else: st.info("Nenhum registro como comandante.")
 
 # --- ABA 2: CUMPRIMENTO ---
 with menu[2]:
@@ -155,7 +150,7 @@ with menu[2]:
             h_e = st.selectbox("Entrada", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
             h_s = st.selectbox("Saída", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
             rel = st.text_area("Relatório", d.get('relatorio_resumido', ''))
-            conf = st.checkbox("Confirmar Cumprimento", value=bool(d.get('cumprido', False)))
+            conf = st.checkbox("Confirmar", value=bool(d.get('cumprido', False)))
             if st.form_submit_button("Salvar Registro"):
                 supabase.table("escala_operacional").update({
                     "comandante_nome": n, "comandante_matricula": m, "viatura": v,
@@ -164,15 +159,37 @@ with menu[2]:
                 }).eq("id", d['id']).execute()
                 st.success("Dados atualizados!"); st.rerun()
 
-# --- ABA 3: ESTATÍSTICAS ---
+# --- ABA 3: ESTATÍSTICAS (Corrigida e Completa) ---
 with menu[3]:
+    st.subheader("📊 Análise Estratégica")
     df_est = carregar_dados_db()
     if not df_est.empty:
+        df_est['data_dt'] = pd.to_datetime(df_est['data'])
+        df_est['Mês/Ano'] = df_est['data_dt'].dt.strftime('%m/%Y')
+        total_geral = len(df_est)
+        
+        # Correção do Mapeamento (Line 174 Fix)
+        map_cidades = {cidade: terr for terr, cidades in territorios.items() for cidade in cidades}
+        df_est['Território'] = df_est['municipio'].map(map_cidades)
+
+        # Gráfico Mensal
+        st.markdown("### 📅 Missões por Mês")
+        st.line_chart(df_est['Mês/Ano'].value_counts())
+        
+        # Estatística por Território
+        st.markdown("---")
+        st.markdown("### 🌎 Por Território")
+        df_terr = df_est['Território'].value_counts().reset_index()
+        df_terr.columns = ['Território', 'Qtd']
+        df_terr['%'] = (df_terr['Qtd']/total_geral*100).map("{:.1f}%".format)
+        col_t1, col_t2 = st.columns([1, 1])
+        col_t1.dataframe(df_terr, hide_index=True)
+        col_t2.bar_chart(df_est['Território'].value_counts())
+        
+        st.markdown("---")
         st.markdown("### 🏙️ Por Cidade")
         st.bar_chart(df_est['municipio'].value_counts(), horizontal=True)
-        st.markdown("### 🌎 Por Território")
-        mapeamento = {cidade: terr for terr, cidades in territorios.items() for city in cidades if (city == cidade)} # Simplificado para performance
-        # ... (restante da lógica de estatística mantida)
+    else: st.info("Aguardando registros.")
 
 # --- ABA 4: GESTÃO ---
 with menu[4]:
@@ -184,7 +201,8 @@ with menu[4]:
         st.button("🔒 Bloquear", on_click=lambda: st.session_state.update({"gestao_liberada": False}))
         col_g1, col_g2 = st.columns(2)
         with col_g1:
-            with st.form("f_nova"):
+            st.subheader("📝 Agendar")
+            with st.form("f_nova", clear_on_submit=True):
                 dt = st.date_input("Data")
                 mu = st.selectbox("Cidade", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
                 un = st.selectbox("Unidade", ["CIPE-MA", "CIPT-ES"])
@@ -192,11 +210,12 @@ with menu[4]:
                     supabase.table("escala_operacional").insert({"data": str(dt), "municipio": mu, "unidade": un, "criado_por": user_email}).execute()
                     st.rerun()
         with col_g2:
-            df_del = carregar_dados_db()
+            st.subheader("🗑️ Excluir")
+            df_del = carregar_dados_db().sort_values(by='data', ascending=False)
             if not df_del.empty:
                 df_del['txt'] = df_del['data'] + " | " + df_del['municipio']
-                it = st.selectbox("Excluir:", df_del['txt'].tolist())
-                if st.button("Excluir"):
+                it = st.selectbox("Selecione:", df_del['txt'].tolist())
+                if st.button("Confirmar Exclusão"):
                     id_del = df_del[df_del['txt'] == it]['id'].values[0]
                     supabase.table("escala_operacional").delete().eq("id", id_del).execute()
                     st.rerun()
