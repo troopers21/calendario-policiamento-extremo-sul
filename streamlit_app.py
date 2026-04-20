@@ -4,6 +4,7 @@ from supabase import create_client, Client
 import datetime
 
 # --- 1. CONFIGURAÇÕES E CONEXÃO ---
+# Chave mantida internamente caso precise para outra lógica futura
 CHAVE_GESTAO = "comando2026"
 MATRICULA_ADMIN = "30455232"
 
@@ -35,14 +36,14 @@ if st.session_state.user_session is None:
     aba_auth = st.tabs(["🔐 Entrar", "📝 Cadastrar-se"])
     with aba_auth[0]:
         with st.form("login_form"):
-            email_in = st.text_input("E-mail") 
+            email_in = st.text_input("E-mail Funcional") 
             senha_in = st.text_input("Senha", type="password")
             if st.form_submit_button("Acessar Sistema", use_container_width=True):
                 try:
                     res = supabase.auth.sign_in_with_password({"email": email_in, "password": senha_in})
                     if res.user:
                         if res.user.email_confirmed_at is None:
-                            st.warning("⚠️ Confirme seu e-mail.")
+                            st.warning("⚠️ Confirme seu e-mail para acessar.")
                         else:
                             st.session_state.user_session = res.user
                             st.rerun()
@@ -135,13 +136,14 @@ for i, titulo in enumerate(titulos_finais):
                     df_r = df_all[df_all['municipio'].isin(cidades)]
                     if not df_r.empty:
                         with st.expander(f"📍 {r}"):
-                            st.dataframe(df_r, use_container_width=True, hide_index=True)
+                            df_r['Situação'] = df_r['cumprido'].map({True: "✅ OK", False: "⚠️ Aberto"})
+                            st.dataframe(df_r[['data', 'municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Situação', 'missao']], use_container_width=True, hide_index=True)
 
         elif titulo == "✅ Cumprimento":
             df_c = carregar_dados_db().sort_values(by="data", ascending=False)
             if not df_c.empty:
                 df_c['sel'] = df_c['data'] + " | " + df_c['municipio']
-                it = st.selectbox("Selecione a Missão para Lançar Dados:", df_c['sel'].tolist())
+                it = st.selectbox("Selecione a Missão:", df_c['sel'].tolist())
                 d = df_c[df_c['sel'] == it].iloc[0]
                 with st.form("f_cump_completo"):
                     col_c1, col_c2 = st.columns(2)
@@ -156,70 +158,57 @@ for i, titulo in enumerate(titulos_finais):
                     rel_det = st.text_area("Relatório Resumido da Missão", d.get('relatorio_resumido', ''))
                     conf_c = st.checkbox("Missão Cumprida Totalmente", value=bool(d.get('cumprido')))
                     
-                    if st.form_submit_button("Salvar Dados de Cumprimento"):
+                    if st.form_submit_button("Salvar Dados"):
                         supabase.table("escala_operacional").update({
-                            "comandante_nome": n_cmt, 
-                            "comandante_matricula": m_cmt,
-                            "viatura": v_pref,
-                            "hora_entrada": h_e_real,
-                            "hora_saida": h_s_real,
-                            "relatorio_resumido": rel_det, 
-                            "cumprido": conf_c, 
-                            "ultima_edicao": datetime.datetime.now().isoformat()
+                            "comandante_nome": n_cmt, "comandante_matricula": m_cmt, "viatura": v_pref,
+                            "hora_entrada": h_e_real, "hora_saida": h_s_real, "relatorio_resumido": rel_det, 
+                            "cumprido": conf_c, "ultima_edicao": datetime.datetime.now().isoformat()
                         }).eq("id", d['id']).execute()
-                        st.success("Registro de cumprimento atualizado!"); st.rerun()
+                        st.success("Salvo!"); st.rerun()
 
         elif titulo == "📊 Estatísticas":
             df_e = carregar_dados_db()
             if not df_e.empty: st.bar_chart(df_e['municipio'].value_counts())
 
         elif titulo == "⚙️ Gestão":
-            if st.text_input("Chave de Comando para Gestão:", type="password") == CHAVE_GESTAO:
-                col_g1, col_g2 = st.columns(2)
-                with col_g1:
-                    st.subheader("📝 Agendar Nova Missão")
-                    with st.form("f_gest_detalhado"):
-                        dt_g = st.date_input("Data da Missão")
-                        mu_g = st.selectbox("Município", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
-                        un_g = st.selectbox("Unidade Responsável", ["CPR-ES", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
-                        
-                        g_h1, g_h2 = st.columns(2)
-                        h_e_prev = g_h1.selectbox("Início Previsto", lista_horas)
-                        h_s_prev = g_h2.selectbox("Fim Previsto", lista_horas)
-                        
-                        miss_obj = st.text_area("Objetivo da Missão / Determinação")
-                        if st.form_submit_button("Confirmar Agendamento"):
-                            supabase.table("escala_operacional").insert({
-                                "data": str(dt_g), 
-                                "municipio": mu_g, 
-                                "unidade": un_g, 
-                                "hora_entrada": h_e_prev,
-                                "hora_saida": h_s_prev,
-                                "missao": miss_obj
-                            }).execute()
-                            st.success("Missão agendada com sucesso!"); st.rerun()
-                
-                with col_g2:
-                    st.subheader("🗑️ Excluir Registro")
-                    df_del = carregar_dados_db().sort_values(by='data', ascending=False)
-                    if not df_del.empty:
-                        df_del['txt'] = df_del['data'] + " | " + df_del['municipio']
-                        it_del = st.selectbox("Selecione para excluir:", df_del['txt'].tolist())
-                        if st.button("Remover Permanentemente"):
-                            id_d = df_del[df_del['txt'] == it_del]['id'].values[0]
-                            supabase.table("escala_operacional").delete().eq("id", id_d).execute()
-                            st.rerun()
+            # REMOVIDO PEDIDO DE SENHA - ACESSO DIRETO
+            col_g1, col_g2 = st.columns(2)
+            with col_g1:
+                st.subheader("📝 Agendar Missão")
+                with st.form("f_gest_nova", clear_on_submit=True):
+                    dt_g = st.date_input("Data da Missão")
+                    mu_g = st.selectbox("Município", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
+                    un_g = st.selectbox("Unidade Responsável", ["CPR-ES", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
+                    h_e_prev = st.selectbox("Início Previsto", lista_horas)
+                    h_s_prev = st.selectbox("Fim Previsto", lista_horas)
+                    miss_obj = st.text_area("Objetivo da Missão")
+                    if st.form_submit_button("Agendar"):
+                        supabase.table("escala_operacional").insert({
+                            "data": str(dt_g), "municipio": mu_g, "unidade": un_g, 
+                            "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj
+                        }).execute()
+                        st.rerun()
+            with col_g2:
+                st.subheader("🗑️ Excluir Registro")
+                df_del = carregar_dados_db().sort_values(by='data', ascending=False)
+                if not df_del.empty:
+                    df_del['txt'] = df_del['data'] + " | " + df_del['municipio']
+                    it_del = st.selectbox("Selecione para excluir:", df_del['txt'].tolist())
+                    if st.button("Remover Permanentemente"):
+                        id_d = df_del[df_del['txt'] == it_del]['id'].values[0]
+                        supabase.table("escala_operacional").delete().eq("id", id_d).execute()
+                        st.rerun()
 
         elif titulo == "🔑 Admin" and eh_admin:
-            st.subheader("Gestão de Acessos e Usuários")
+            st.subheader("Gestão de Acessos")
             try:
                 res_u = supabase.table("lista_usuarios_admin").select("*").execute()
                 if res_u.data:
                     for user in res_u.data:
-                        with st.expander(f"👤 {user['nome_completo']} ({user['matricula']}) - {user['posto_grad']}"):
+                        with st.expander(f"👤 {user['nome_completo']} ({user['matricula']})"):
                             p_atual = buscar_permissoes(user['matricula'])
                             novas_p = st.multiselect("Abas Permitidas:", abas_possiveis, default=p_atual, key=f"p_{user['matricula']}")
-                            if st.button("Atualizar Acessos", key=f"b_{user['matricula']}"):
+                            if st.button("Atualizar", key=f"b_{user['matricula']}"):
                                 supabase.table("permissoes_usuarios").upsert({"matricula": user['matricula'], "abas_permitidas": novas_p}).execute()
-                                st.success("Acessos atualizados!")
+                                st.success("Atualizado!")
             except Exception as e: st.error(f"Erro: {e}")
