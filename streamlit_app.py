@@ -102,13 +102,12 @@ territorios = {
     "Costa das Baleias": ["Teixeira de Freitas", "Itamaraju", "Jucuruçu", "Medeiros Neto", "Itanhém", "Lajedão", "Vereda", "Ibirapuã", "Alcobaça", "Prado", "Caravelas", "Mucuri", "Nova Viçosa"]
 }
 
-# --- 5. INTERFACE SIDEBAR ---
+# --- 5. INTERFACE ---
 with st.sidebar:
     st.markdown(f"### 👮 {p_g_user} {nome_user}\n{unidade_user} | {mat_user}")
     if st.button("Sair"):
         supabase.auth.sign_out(); st.session_state.user_session = None; st.rerun()
 
-# --- 6. ABAS ---
 abas_possiveis = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão"]
 if eh_admin: abas_possiveis.append("🔑 Admin")
 
@@ -145,7 +144,7 @@ for i, titulo in enumerate(titulos_finais):
             df_c = carregar_dados_db().sort_values(by="data", ascending=False)
             if not df_c.empty:
                 df_c['sel'] = df_c['data'] + " | " + df_c['municipio']
-                it = st.selectbox("Selecione a Missão:", df_c['sel'].tolist())
+                it = st.selectbox("Selecione a Missão:", df_c['sel'].tolist(), key="sel_cump")
                 d = df_c[df_c['sel'] == it].iloc[0]
                 with st.form("f_cump_completo"):
                     col_c1, col_c2 = st.columns(2)
@@ -164,8 +163,7 @@ for i, titulo in enumerate(titulos_finais):
                         supabase.table("escala_operacional").update({
                             "comandante_nome": n_cmt, "comandante_matricula": m_cmt, "viatura": v_pref,
                             "hora_entrada": h_e_real, "hora_saida": h_s_real, "relatorio_resumido": rel_det, 
-                            "cumprido": conf_c, "ultima_edicao": datetime.datetime.now().isoformat(),
-                            "editado_por": user_email
+                            "cumprido": conf_c, "ultima_edicao": datetime.datetime.now().isoformat()
                         }).eq("id", d['id']).execute()
                         st.success("Salvo!"); st.rerun()
 
@@ -185,18 +183,24 @@ for i, titulo in enumerate(titulos_finais):
                     h_s_prev = st.selectbox("Fim Previsto", lista_horas)
                     miss_obj = st.text_area("Objetivo da Missão")
                     if st.form_submit_button("Agendar"):
-                        supabase.table("escala_operacional").insert({
-                            "data": str(dt_g), "municipio": mu_g, "unidade": un_g, 
-                            "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj,
+                        # Inserção explícita para evitar erros de RLS
+                        novo_registro = {
+                            "data": str(dt_g), 
+                            "municipio": mu_g, 
+                            "unidade": un_g, 
+                            "hora_entrada": h_e_prev, 
+                            "hora_saida": h_s_prev, 
+                            "missao": miss_obj,
                             "criado_por": user_email
-                        }).execute()
+                        }
+                        supabase.table("escala_operacional").insert(novo_registro).execute()
                         st.rerun()
             with col_g2:
                 st.subheader("🗑️ Excluir Registro")
                 df_del = carregar_dados_db().sort_values(by='data', ascending=False)
                 if not df_del.empty:
                     df_del['txt'] = df_del['data'] + " | " + df_del['municipio']
-                    it_del = st.selectbox("Selecione para excluir:", df_del['txt'].tolist())
+                    it_del = st.selectbox("Selecione para excluir:", df_del['txt'].tolist(), key="del_escala")
                     if st.button("Remover Permanentemente"):
                         id_d = df_del[df_del['txt'] == it_del]['id'].values[0]
                         supabase.table("escala_operacional").delete().eq("id", id_d).execute()
