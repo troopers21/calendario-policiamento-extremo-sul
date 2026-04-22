@@ -169,7 +169,7 @@ for i, titulo in enumerate(titulos_finais):
                                 "editado_por": user_email
                             }).eq("id", d['id']).execute()
                             st.success("Salvo!"); st.rerun()
-                        except Exception as e: st.error(f"Erro ao salvar cumprimento: {e}")
+                        except Exception as e: st.error(f"Erro ao salvar: {e}")
 
         elif titulo == "📊 Estatísticas":
             df_e = carregar_dados_db()
@@ -188,20 +188,13 @@ for i, titulo in enumerate(titulos_finais):
                     miss_obj = st.text_area("Objetivo da Missão")
                     if st.form_submit_button("Agendar"):
                         try:
-                            # Inserção explícita
                             supabase.table("escala_operacional").insert({
-                                "data": str(dt_g), 
-                                "municipio": mu_g, 
-                                "unidade": un_g, 
-                                "hora_entrada": h_e_prev, 
-                                "hora_saida": h_s_prev, 
-                                "missao": miss_obj,
+                                "data": str(dt_g), "municipio": mu_g, "unidade": un_g, 
+                                "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj,
                                 "criado_por": user_email
                             }).execute()
                             st.rerun()
-                        except Exception as e:
-                            st.error(f"Falha no agendamento: {e}")
-                            st.info("Dica: Verifique se a coluna 'missao' e 'criado_por' existem no Supabase.")
+                        except Exception as e: st.error(f"Falha no agendamento: {e}")
 
             with col_g2:
                 st.subheader("🗑️ Excluir Registro")
