@@ -130,9 +130,17 @@ territorios = {
 with st.sidebar:
     st.markdown(f"### 👮 {p_g_user} {nome_user}\n{unidade_user} | {mat_user}")
     if st.button("Sair"):
-        # Limpa os cookies no logout com chaves únicas
-        cookie_manager.delete("sb_access_token", key="del_acc_token")
-        cookie_manager.delete("sb_refresh_token", key="del_ref_token")
+        # Limpa os cookies no logout de forma segura para evitar KeyError
+        try:
+            cookie_manager.delete("sb_access_token", key="del_acc_token")
+        except:
+            pass
+        
+        try:
+            cookie_manager.delete("sb_refresh_token", key="del_ref_token")
+        except:
+            pass
+            
         supabase.auth.sign_out()
         st.session_state.user_session = None
         st.rerun()
