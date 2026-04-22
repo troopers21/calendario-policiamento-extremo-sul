@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 import datetime
-import time
 import extra_streamlit_components as stx
 
 # --- 1. CONFIGURAÇÕES E CONEXÃO ---
@@ -18,13 +17,31 @@ st.set_page_config(page_title="SISPOSIÇÃO - PMBA - CPR-ES", layout="wide", pag
 # Inicia o gerenciador de Cookies
 cookie_manager = stx.CookieManager(key="gerenciador_cookies")
 
-# --- CORREÇÃO DEFINITIVA DO F5 ---
-# Força o sistema a esperar 0.3 segundos no primeiro carregamento 
-# para dar tempo do navegador (Chrome/Edge) enviar os cookies salvos.
-if "esperou_cookies" not in st.session_state:
-    time.sleep(0.8)
-    st.session_state.esperou_cookies = True
-    st.rerun()
+# --- LÓGICA DE SINCRONIZAÇÃO SEGURA DO NAVEGADOR (CORREÇÃO DO F5) ---
+cookies_gerais = cookie_manager.get_all()
+if cookies_gerais is None:
+    # Se for None, o componente do frontend ainda não terminou de montar.
+    # Paramos o código e exibimos o aviso até que ele se comunique com o Python (leva milissegundos).
+    st.markdown("<div style='text-align: center; margin-top: 50px;'><h3>🔄 Sincronizando sessão segura... Aguarde.</h3></div>", unsafe_allow_html=True)
+    st.stop()
+
+# --- COMANDOS PENDENTES DE COOKIE ---
+# Se o usuário acabou de logar, gravamos o cookie ANTES de processar o resto da página
+if "temp_access_token" in st.session_state:
+    validade = datetime.datetime.now() + datetime.timedelta(days=30)
+    cookie_manager.set("sb_access_token", st.session_state.temp_access_token, expires_at=validade, key="set_acc")
+    cookie_manager.set("sb_refresh_token", st.session_state.temp_refresh_token, expires_at=validade, key="set_ref")
+    del st.session_state["temp_access_token"]
+    del st.session_state["temp_refresh_token"]
+
+# Se o usuário clicou em sair, apagamos o cookie com segurança
+if "temp_logout" in st.session_state:
+    try: cookie_manager.delete("sb_access_token", key="del_acc")
+    except: pass
+    try: cookie_manager.delete("sb_refresh_token", key="del_ref")
+    except: pass
+    supabase.auth.sign_out()
+    del st.session_state["temp_logout"]
 
 # --- 2. CABEÇALHO ---
 col_logo1, col_logo2, col_logo3 = st.columns([0.5, 2.0, 0.5])
@@ -34,7 +51,7 @@ with col_logo2:
 
 st.markdown("<div style='text-align: center;'><h1>🛡️ SISPOSIÇÃO</h1><p>Sistema de Policiamento Sem Sobreposição — CPR-ES</p><hr></div>", unsafe_allow_html=True)
 
-# --- 3. LÓGICA DE AUTENTICAÇÃO (COM COOKIES PARA F5) ---
+# --- 3. LÓGICA DE AUTENTICAÇÃO ---
 if "user_session" not in st.session_state:
     st.session_state.user_session = None
 
@@ -45,7 +62,7 @@ try:
         st.session_state.user_session = session_res.user
 except: pass
 
-# Se a memória estiver vazia (como num F5), tenta buscar os crachás nos cookies
+# Se a memória estiver vazia (F5), puxamos dos cookies já sincronizados
 if st.session_state.user_session is None:
     access_token = cookie_manager.get(cookie="sb_access_token")
     refresh_token = cookie_manager.get(cookie="sb_refresh_token")
@@ -71,11 +88,10 @@ if st.session_state.user_session is None:
                         if res.user.email_confirmed_at is None:
                             st.warning("⚠️ Confirme seu e-mail para acessar.")
                         else:
+                            # Guarda a sessão e salva os tokens temporariamente para o sistema registrar na próxima passada
                             st.session_state.user_session = res.user
-                            # Salva os cookies com KEYS ÚNICAS para evitar erro no Streamlit
-                            validade = datetime.datetime.now() + datetime.timedelta(days=30)
-                            cookie_manager.set("sb_access_token", res.session.access_token, expires_at=validade, key="set_acc_token")
-                            cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=validade, key="set_ref_token")
+                            st.session_state.temp_access_token = res.session.access_token
+                            st.session_state.temp_refresh_token = res.session.refresh_token
                             st.rerun()
                 except Exception as e: st.error(f"Erro no login: {e}")
 
@@ -139,13 +155,8 @@ territorios = {
 with st.sidebar:
     st.markdown(f"### 👮 {p_g_user} {nome_user}\n{unidade_user} | {mat_user}")
     if st.button("Sair"):
-        # Limpa os cookies no logout de forma segura
-        try: cookie_manager.delete("sb_access_token", key="del_acc_token")
-        except: pass
-        try: cookie_manager.delete("sb_refresh_token", key="del_ref_token")
-        except: pass
-            
-        supabase.auth.sign_out()
+        # Aciona a flag de logout e desloga da memória. Os cookies serão apagados na próxima reiniciada natural da página.
+        st.session_state.temp_logout = True
         st.session_state.user_session = None
         st.rerun()
 
