@@ -68,11 +68,12 @@ if st.session_state.user_session is None:
 
                     supabase.auth.sign_up({"email": e_reg, "password": p_reg, "options": {"data": {"posto_grad": posto_grad, "nome_completo": nome_reg, "matricula": mat_reg, "unidade": unidade_reg}}})
                     supabase.table("permissoes_usuarios").upsert({"matricula": mat_reg, "abas_permitidas": perms_iniciais}).execute()
-                    st.success("✅ Cadastro solicitado! Verifique seu e-mail para ativar.")
+                    st.success("✅ Cadastro solicitado! Verifique seu e-mail.")
                 except Exception as e: st.error(f"Erro: {e}")
     st.stop()
 
 # --- 4. VARIÁVEIS DO USUÁRIO ---
+user_email = st.session_state.user_session.email
 user_meta = st.session_state.user_session.user_metadata
 p_g_user = user_meta.get("posto_grad", "")
 nome_user = user_meta.get("nome_completo", "Usuário")
@@ -101,12 +102,13 @@ territorios = {
     "Costa das Baleias": ["Teixeira de Freitas", "Itamaraju", "Jucuruçu", "Medeiros Neto", "Itanhém", "Lajedão", "Vereda", "Ibirapuã", "Alcobaça", "Prado", "Caravelas", "Mucuri", "Nova Viçosa"]
 }
 
-# --- 5. INTERFACE ---
+# --- 5. INTERFACE SIDEBAR ---
 with st.sidebar:
     st.markdown(f"### 👮 {p_g_user} {nome_user}\n{unidade_user} | {mat_user}")
     if st.button("Sair"):
         supabase.auth.sign_out(); st.session_state.user_session = None; st.rerun()
 
+# --- 6. ABAS ---
 abas_possiveis = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão"]
 if eh_admin: abas_possiveis.append("🔑 Admin")
 
@@ -129,7 +131,7 @@ for i, titulo in enumerate(titulos_finais):
                         st.dataframe(df_r[['municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Estado']], use_container_width=True, hide_index=True)
 
         elif titulo == "🎖️ Comandante":
-            # --- SEÇÃO CONGELADA (INALTERADA) ---
+            # --- SEÇÃO CONGELADA ---
             df_all = carregar_dados_db().sort_values(by="data", ascending=False)
             if not df_all.empty:
                 for r, cidades in territorios.items():
@@ -162,9 +164,10 @@ for i, titulo in enumerate(titulos_finais):
                         supabase.table("escala_operacional").update({
                             "comandante_nome": n_cmt, "comandante_matricula": m_cmt, "viatura": v_pref,
                             "hora_entrada": h_e_real, "hora_saida": h_s_real, "relatorio_resumido": rel_det, 
-                            "cumprido": conf_c, "ultima_edicao": datetime.datetime.now().isoformat()
+                            "cumprido": conf_c, "ultima_edicao": datetime.datetime.now().isoformat(),
+                            "editado_por": user_email
                         }).eq("id", d['id']).execute()
-                        st.success("Dados salvos com sucesso!"); st.rerun()
+                        st.success("Salvo!"); st.rerun()
 
         elif titulo == "📊 Estatísticas":
             df_e = carregar_dados_db()
@@ -184,7 +187,8 @@ for i, titulo in enumerate(titulos_finais):
                     if st.form_submit_button("Agendar"):
                         supabase.table("escala_operacional").insert({
                             "data": str(dt_g), "municipio": mu_g, "unidade": un_g, 
-                            "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj
+                            "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj,
+                            "criado_por": user_email
                         }).execute()
                         st.rerun()
             with col_g2:
@@ -209,5 +213,5 @@ for i, titulo in enumerate(titulos_finais):
                             novas_p = st.multiselect("Abas Permitidas:", abas_possiveis, default=p_atual, key=f"p_{user['matricula']}")
                             if st.button("Atualizar", key=f"b_{user['matricula']}"):
                                 supabase.table("permissoes_usuarios").upsert({"matricula": user['matricula'], "abas_permitidas": novas_p}).execute()
-                                st.success("Acessos atualizados!")
-            except Exception as e: st.error(f"Erro ao carregar usuários: {e}")
+                                st.success("Atualizado!")
+            except Exception as e: st.error(f"Erro: {e}")
