@@ -93,8 +93,11 @@ eh_admin = mat_user == MATRICULA_ADMIN
 def carregar_dados_db():
     try:
         res = supabase.table("escala_operacional").select("*").execute()
-        return pd.DataFrame(res.data)
-    except: return pd.DataFrame()
+        if res.data:
+            return pd.DataFrame(res.data)
+    except: pass
+    # CORREÇÃO: Esqueleto de DataFrame com todas as colunas para evitar KeyError quando a tabela estiver vazia
+    return pd.DataFrame(columns=["id", "data", "municipio", "unidade", "hora_entrada", "hora_saida", "missao", "comandante_nome", "comandante_matricula", "viatura", "relatorio_resumido", "cumprido", "criado_por", "editado_por", "ultima_edicao"])
 
 lista_horas = [f"{h:02d}:00" for h in range(24)]
 territorios = {
@@ -102,12 +105,13 @@ territorios = {
     "Costa das Baleias": ["Teixeira de Freitas", "Itamaraju", "Jucuruçu", "Medeiros Neto", "Itanhém", "Lajedão", "Vereda", "Ibirapuã", "Alcobaça", "Prado", "Caravelas", "Mucuri", "Nova Viçosa"]
 }
 
-# --- 5. INTERFACE ---
+# --- 5. INTERFACE SIDEBAR ---
 with st.sidebar:
     st.markdown(f"### 👮 {p_g_user} {nome_user}\n{unidade_user} | {mat_user}")
     if st.button("Sair"):
         supabase.auth.sign_out(); st.session_state.user_session = None; st.rerun()
 
+# --- 6. ABAS ---
 abas_possiveis = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão"]
 if eh_admin: abas_possiveis.append("🔑 Admin")
 
@@ -167,7 +171,7 @@ for i, titulo in enumerate(titulos_finais):
                                 "cumprido": conf_c, "ultima_edicao": datetime.datetime.now().isoformat(),
                                 "editado_por": user_email
                             }).eq("id", d['id']).execute()
-                            st.success("Salvo com sucesso!"); st.rerun()
+                            st.success("Salvo!"); st.rerun()
                         except Exception as e: st.error(f"Erro ao salvar: {e}")
 
         elif titulo == "📊 Estatísticas":
@@ -185,19 +189,16 @@ for i, titulo in enumerate(titulos_finais):
                     h_e_prev = st.selectbox("Início Previsto", lista_horas)
                     h_s_prev = st.selectbox("Fim Previsto", lista_horas)
                     miss_obj = st.text_area("Objetivo da Missão")
-                    if st.form_submit_button("Agendar Missão"):
+                    if st.form_submit_button("Agendar"):
                         try:
                             supabase.table("escala_operacional").insert({
-                                "data": str(dt_g), 
-                                "municipio": mu_g, 
-                                "unidade": un_g, 
-                                "hora_entrada": h_e_prev, 
-                                "hora_saida": h_s_prev, 
-                                "missao": miss_obj,
+                                "data": str(dt_g), "municipio": mu_g, "unidade": un_g, 
+                                "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj,
                                 "criado_por": user_email
                             }).execute()
-                            st.success("Missão agendada com sucesso!"); st.rerun()
+                            st.rerun()
                         except Exception as e: st.error(f"Falha no agendamento: {e}")
+
             with col_g2:
                 st.subheader("🗑️ Excluir Registro")
                 df_del = carregar_dados_db().sort_values(by='data', ascending=False)
