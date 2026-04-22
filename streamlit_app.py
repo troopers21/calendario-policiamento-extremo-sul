@@ -22,7 +22,7 @@ cookie_manager = stx.CookieManager(key="gerenciador_cookies")
 # Força o sistema a esperar 0.3 segundos no primeiro carregamento 
 # para dar tempo do navegador (Chrome/Edge) enviar os cookies salvos.
 if "esperou_cookies" not in st.session_state:
-    time.sleep(0.3)
+    time.sleep(0.8)
     st.session_state.esperou_cookies = True
     st.rerun()
 
