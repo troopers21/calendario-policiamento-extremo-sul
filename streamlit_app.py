@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 import datetime
+import extra_streamlit_components as stx
 
 # --- 1. CONFIGURAÇÕES E CONEXÃO ---
 CHAVE_GESTAO = "comando2026"
@@ -13,6 +14,9 @@ supabase: Client = create_client(url, key)
 
 st.set_page_config(page_title="SISPOSIÇÃO - PMBA - CPR-ES", layout="wide", page_icon="🛡️")
 
+# Inicia o gerenciador de Cookies
+cookie_manager = stx.CookieManager(key="gerenciador_cookies")
+
 # --- 2. CABEÇALHO ---
 col_logo1, col_logo2, col_logo3 = st.columns([0.5, 2.0, 0.5])
 with col_logo2:
@@ -21,16 +25,30 @@ with col_logo2:
 
 st.markdown("<div style='text-align: center;'><h1>🛡️ SISPOSIÇÃO</h1><p>Sistema de Policiamento Sem Sobreposição — CPR-ES</p><hr></div>", unsafe_allow_html=True)
 
-# --- 3. LÓGICA DE AUTENTICAÇÃO ---
+# --- 3. LÓGICA DE AUTENTICAÇÃO (COM COOKIES PARA F5) ---
 if "user_session" not in st.session_state:
     st.session_state.user_session = None
 
+# Tenta carregar a sessão ativa da memória primeiro
 try:
     session_res = supabase.auth.get_session()
     if session_res and session_res.session:
         st.session_state.user_session = session_res.user
 except: pass
 
+# Se a memória estiver vazia (como num F5), tenta buscar os crachás nos cookies
+if st.session_state.user_session is None:
+    access_token = cookie_manager.get(cookie="sb_access_token")
+    refresh_token = cookie_manager.get(cookie="sb_refresh_token")
+    
+    if access_token and refresh_token:
+        try:
+            res_cookie = supabase.auth.set_session(access_token, refresh_token)
+            if res_cookie.user:
+                st.session_state.user_session = res_cookie.user
+        except: pass
+
+# TELA DE LOGIN / CADASTRO
 if st.session_state.user_session is None:
     aba_auth = st.tabs(["🔐 Entrar", "📝 Cadastrar-se"])
     with aba_auth[0]:
@@ -45,6 +63,10 @@ if st.session_state.user_session is None:
                             st.warning("⚠️ Confirme seu e-mail para acessar.")
                         else:
                             st.session_state.user_session = res.user
+                            # Salva os cookies por 30 dias para evitar deslogar no F5
+                            validade = datetime.datetime.now() + datetime.timedelta(days=30)
+                            cookie_manager.set("sb_access_token", res.session.access_token, expires_at=validade)
+                            cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=validade)
                             st.rerun()
                 except Exception as e: st.error(f"Erro no login: {e}")
 
@@ -108,7 +130,12 @@ territorios = {
 with st.sidebar:
     st.markdown(f"### 👮 {p_g_user} {nome_user}\n{unidade_user} | {mat_user}")
     if st.button("Sair"):
-        supabase.auth.sign_out(); st.session_state.user_session = None; st.rerun()
+        # Limpa os cookies no logout
+        cookie_manager.delete("sb_access_token")
+        cookie_manager.delete("sb_refresh_token")
+        supabase.auth.sign_out()
+        st.session_state.user_session = None
+        st.rerun()
 
 # --- 6. ABAS ---
 abas_possiveis = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão"]
@@ -170,7 +197,7 @@ for i, titulo in enumerate(titulos_finais):
                                 "cumprido": conf_c, "ultima_edicao": datetime.datetime.now().isoformat(),
                                 "editado_por": user_email
                             }).eq("id", d['id']).execute()
-                            st.success("Salvo!"); st.rerun()
+                            st.success("Salvo com sucesso!"); st.rerun()
                         except Exception as e: st.error(f"Erro ao salvar: {e}")
 
         elif titulo == "📊 Estatísticas":
@@ -188,16 +215,15 @@ for i, titulo in enumerate(titulos_finais):
                     h_e_prev = st.selectbox("Início Previsto", lista_horas)
                     h_s_prev = st.selectbox("Fim Previsto", lista_horas)
                     miss_obj = st.text_area("Objetivo da Missão")
-                    if st.form_submit_button("Agendar"):
+                    if st.form_submit_button("Agendar Missão"):
                         try:
                             supabase.table("escala_operacional").insert({
                                 "data": str(dt_g), "municipio": mu_g, "unidade": un_g, 
                                 "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj,
                                 "criado_por": user_email
                             }).execute()
-                            st.rerun()
+                            st.success("Missão agendada com sucesso!"); st.rerun()
                         except Exception as e: st.error(f"Falha no agendamento: {e}")
-
             with col_g2:
                 st.subheader("🗑️ Excluir Registro")
                 df_del = carregar_dados_db().sort_values(by='data', ascending=False)
