@@ -167,7 +167,7 @@ for i, titulo in enumerate(titulos_finais):
                                 "cumprido": conf_c, "ultima_edicao": datetime.datetime.now().isoformat(),
                                 "editado_por": user_email
                             }).eq("id", d['id']).execute()
-                            st.success("Salvo!"); st.rerun()
+                            st.success("Salvo com sucesso!"); st.rerun()
                         except Exception as e: st.error(f"Erro ao salvar: {e}")
 
         elif titulo == "📊 Estatísticas":
@@ -185,14 +185,18 @@ for i, titulo in enumerate(titulos_finais):
                     h_e_prev = st.selectbox("Início Previsto", lista_horas)
                     h_s_prev = st.selectbox("Fim Previsto", lista_horas)
                     miss_obj = st.text_area("Objetivo da Missão")
-                    if st.form_submit_button("Agendar"):
+                    if st.form_submit_button("Agendar Missão"):
                         try:
                             supabase.table("escala_operacional").insert({
-                                "data": str(dt_g), "municipio": mu_g, "unidade": un_g, 
-                                "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj,
+                                "data": str(dt_g), 
+                                "municipio": mu_g, 
+                                "unidade": un_g, 
+                                "hora_entrada": h_e_prev, 
+                                "hora_saida": h_s_prev, 
+                                "missao": miss_obj,
                                 "criado_por": user_email
                             }).execute()
-                            st.success("Missão agendada!"); st.rerun()
+                            st.success("Missão agendada com sucesso!"); st.rerun()
                         except Exception as e: st.error(f"Falha no agendamento: {e}")
             with col_g2:
                 st.subheader("🗑️ Excluir Registro")
