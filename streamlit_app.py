@@ -63,10 +63,10 @@ if st.session_state.user_session is None:
                             st.warning("⚠️ Confirme seu e-mail para acessar.")
                         else:
                             st.session_state.user_session = res.user
-                            # Salva os cookies por 30 dias para evitar deslogar no F5
+                            # Salva os cookies com KEYS ÚNICAS para evitar erro no Streamlit
                             validade = datetime.datetime.now() + datetime.timedelta(days=30)
-                            cookie_manager.set("sb_access_token", res.session.access_token, expires_at=validade)
-                            cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=validade)
+                            cookie_manager.set("sb_access_token", res.session.access_token, expires_at=validade, key="set_acc_token")
+                            cookie_manager.set("sb_refresh_token", res.session.refresh_token, expires_at=validade, key="set_ref_token")
                             st.rerun()
                 except Exception as e: st.error(f"Erro no login: {e}")
 
@@ -130,9 +130,9 @@ territorios = {
 with st.sidebar:
     st.markdown(f"### 👮 {p_g_user} {nome_user}\n{unidade_user} | {mat_user}")
     if st.button("Sair"):
-        # Limpa os cookies no logout
-        cookie_manager.delete("sb_access_token")
-        cookie_manager.delete("sb_refresh_token")
+        # Limpa os cookies no logout com chaves únicas
+        cookie_manager.delete("sb_access_token", key="del_acc_token")
+        cookie_manager.delete("sb_refresh_token", key="del_ref_token")
         supabase.auth.sign_out()
         st.session_state.user_session = None
         st.rerun()
@@ -216,14 +216,43 @@ for i, titulo in enumerate(titulos_finais):
                     h_s_prev = st.selectbox("Fim Previsto", lista_horas)
                     miss_obj = st.text_area("Objetivo da Missão")
                     if st.form_submit_button("Agendar Missão"):
-                        try:
-                            supabase.table("escala_operacional").insert({
-                                "data": str(dt_g), "municipio": mu_g, "unidade": un_g, 
-                                "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj,
-                                "criado_por": user_email
-                            }).execute()
-                            st.success("Missão agendada com sucesso!"); st.rerun()
-                        except Exception as e: st.error(f"Falha no agendamento: {e}")
+                        
+                        df_atual = carregar_dados_db()
+                        sobreposicao_detectada = False
+                        
+                        # --- LÓGICA DE SOBREPOSIÇÃO (SISTEMA SEM SOBREPOSIÇÃO) ---
+                        if not df_atual.empty:
+                            df_dia = df_atual[df_atual['data'] == str(dt_g)]
+                            if not df_dia.empty:
+                                inicio_novo = int(h_e_prev.split(":")[0])
+                                fim_novo = int(h_s_prev.split(":")[0])
+                                if fim_novo <= inicio_novo: fim_novo += 24 # Lida com missões que viram a noite
+                                
+                                for _, row in df_dia.iterrows():
+                                    try:
+                                        inicio_existente = int(str(row['hora_entrada']).split(":")[0])
+                                        fim_existente = int(str(row['hora_saida']).split(":")[0])
+                                        if fim_existente <= inicio_existente: fim_existente += 24
+                                        
+                                        # Fórmula para verificar se dois intervalos de tempo se cruzam
+                                        if (inicio_novo < fim_existente) and (fim_novo > inicio_existente):
+                                            sobreposicao_detectada = True
+                                            break
+                                    except:
+                                        pass
+                        
+                        if sobreposicao_detectada:
+                            st.error("⚠️ REGRA DE SOBREPOSIÇÃO: Já existe uma missão cadastrada que conflita com este mesmo dia e horário. Por favor, escolha outro horário ou dia.")
+                        else:
+                            try:
+                                supabase.table("escala_operacional").insert({
+                                    "data": str(dt_g), "municipio": mu_g, "unidade": un_g, 
+                                    "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj,
+                                    "criado_por": user_email
+                                }).execute()
+                                st.success("Missão agendada com sucesso!"); st.rerun()
+                            except Exception as e: st.error(f"Falha no agendamento: {e}")
+
             with col_g2:
                 st.subheader("🗑️ Excluir Registro")
                 df_del = carregar_dados_db().sort_values(by='data', ascending=False)
