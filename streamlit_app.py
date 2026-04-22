@@ -102,13 +102,12 @@ territorios = {
     "Costa das Baleias": ["Teixeira de Freitas", "Itamaraju", "Jucuruçu", "Medeiros Neto", "Itanhém", "Lajedão", "Vereda", "Ibirapuã", "Alcobaça", "Prado", "Caravelas", "Mucuri", "Nova Viçosa"]
 }
 
-# --- 5. INTERFACE SIDEBAR ---
+# --- 5. INTERFACE ---
 with st.sidebar:
     st.markdown(f"### 👮 {p_g_user} {nome_user}\n{unidade_user} | {mat_user}")
     if st.button("Sair"):
         supabase.auth.sign_out(); st.session_state.user_session = None; st.rerun()
 
-# --- 6. ABAS ---
 abas_possiveis = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão"]
 if eh_admin: abas_possiveis.append("🔑 Admin")
 
@@ -193,9 +192,8 @@ for i, titulo in enumerate(titulos_finais):
                                 "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj,
                                 "criado_por": user_email
                             }).execute()
-                            st.rerun()
+                            st.success("Missão agendada!"); st.rerun()
                         except Exception as e: st.error(f"Falha no agendamento: {e}")
-
             with col_g2:
                 st.subheader("🗑️ Excluir Registro")
                 df_del = carregar_dados_db().sort_values(by='data', ascending=False)
