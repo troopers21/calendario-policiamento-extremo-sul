@@ -96,7 +96,6 @@ def carregar_dados_db():
         if res.data:
             return pd.DataFrame(res.data)
     except: pass
-    # CORREÇÃO: Esqueleto de DataFrame com todas as colunas para evitar KeyError quando a tabela estiver vazia
     return pd.DataFrame(columns=["id", "data", "municipio", "unidade", "hora_entrada", "hora_saida", "missao", "comandante_nome", "comandante_matricula", "viatura", "relatorio_resumido", "cumprido", "criado_por", "editado_por", "ultima_edicao"])
 
 lista_horas = [f"{h:02d}:00" for h in range(24)]
