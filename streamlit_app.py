@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 import datetime
+import time
 import extra_streamlit_components as stx
 
 # --- 1. CONFIGURAÇÕES E CONEXÃO ---
@@ -17,10 +18,13 @@ st.set_page_config(page_title="SISPOSIÇÃO - PMBA - CPR-ES", layout="wide", pag
 # Inicia o gerenciador de Cookies
 cookie_manager = stx.CookieManager(key="gerenciador_cookies")
 
-# --- CORREÇÃO DO F5 ---
-# Força o Streamlit a esperar os cookies chegarem do navegador antes de prosseguir
-if cookie_manager.get_all() is None:
-    st.stop()
+# --- CORREÇÃO DEFINITIVA DO F5 ---
+# Força o sistema a esperar 0.3 segundos no primeiro carregamento 
+# para dar tempo do navegador (Chrome/Edge) enviar os cookies salvos.
+if "esperou_cookies" not in st.session_state:
+    time.sleep(0.3)
+    st.session_state.esperou_cookies = True
+    st.rerun()
 
 # --- 2. CABEÇALHO ---
 col_logo1, col_logo2, col_logo3 = st.columns([0.5, 2.0, 0.5])
@@ -41,7 +45,7 @@ try:
         st.session_state.user_session = session_res.user
 except: pass
 
-# Se a memória estiver vazia (como num F5), busca os crachás nos cookies
+# Se a memória estiver vazia (como num F5), tenta buscar os crachás nos cookies
 if st.session_state.user_session is None:
     access_token = cookie_manager.get(cookie="sb_access_token")
     refresh_token = cookie_manager.get(cookie="sb_refresh_token")
