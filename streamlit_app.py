@@ -17,6 +17,11 @@ st.set_page_config(page_title="SISPOSIÇÃO - PMBA - CPR-ES", layout="wide", pag
 # Inicia o gerenciador de Cookies
 cookie_manager = stx.CookieManager(key="gerenciador_cookies")
 
+# --- CORREÇÃO DO F5 ---
+# Força o Streamlit a esperar os cookies chegarem do navegador antes de prosseguir
+if cookie_manager.get_all() is None:
+    st.stop()
+
 # --- 2. CABEÇALHO ---
 col_logo1, col_logo2, col_logo3 = st.columns([0.5, 2.0, 0.5])
 with col_logo2:
@@ -36,7 +41,7 @@ try:
         st.session_state.user_session = session_res.user
 except: pass
 
-# Se a memória estiver vazia (como num F5), tenta buscar os crachás nos cookies
+# Se a memória estiver vazia (como num F5), busca os crachás nos cookies
 if st.session_state.user_session is None:
     access_token = cookie_manager.get(cookie="sb_access_token")
     refresh_token = cookie_manager.get(cookie="sb_refresh_token")
@@ -130,16 +135,11 @@ territorios = {
 with st.sidebar:
     st.markdown(f"### 👮 {p_g_user} {nome_user}\n{unidade_user} | {mat_user}")
     if st.button("Sair"):
-        # Limpa os cookies no logout de forma segura para evitar KeyError
-        try:
-            cookie_manager.delete("sb_access_token", key="del_acc_token")
-        except:
-            pass
-        
-        try:
-            cookie_manager.delete("sb_refresh_token", key="del_ref_token")
-        except:
-            pass
+        # Limpa os cookies no logout de forma segura
+        try: cookie_manager.delete("sb_access_token", key="del_acc_token")
+        except: pass
+        try: cookie_manager.delete("sb_refresh_token", key="del_ref_token")
+        except: pass
             
         supabase.auth.sign_out()
         st.session_state.user_session = None
