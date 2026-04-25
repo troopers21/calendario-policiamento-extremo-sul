@@ -296,16 +296,18 @@ for i, titulo in enumerate(titulos_finais):
                 st.subheader("🗑️ Excluir Registro")
                 df_del = carregar_dados_db().sort_values(by='data', ascending=False)
                 if not df_del.empty:
-                    # Adicionando a Unidade na lista de seleção
                     df_del['txt'] = df_del['data'] + " | " + df_del['municipio'] + " | " + df_del['unidade']
                     
-                    it_del = st.selectbox("Selecione para excluir:", df_del['txt'].tolist(), key="del_escala")
+                    # 1. Cria a lista de opções adicionando um item em branco no início
+                    opcoes_exclusao = [""] + df_del['txt'].tolist()
                     
-                    # Exibindo os dados do registro selecionado logo abaixo
-                    if it_del:
+                    # 2. Passa a nova lista e define o index=0 (que é o item em branco) como padrão
+                    it_del = st.selectbox("Selecione para excluir:", opcoes_exclusao, index=0, key="del_escala")
+                    
+                    # 3. Só exibe os dados e o botão se o item selecionado não for o espaço em branco
+                    if it_del != "":
                         reg_selecionado = df_del[df_del['txt'] == it_del].iloc[0]
                         
-                        # Mostra um pequeno painel com o resumo da missão para o usuário confirmar
                         st.info(f"""
                         **Detalhes da Missão:**
                         * **Horário Previsto:** {reg_selecionado['hora_entrada']} às {reg_selecionado['hora_saida']}
@@ -313,12 +315,12 @@ for i, titulo in enumerate(titulos_finais):
                         * **Status:** {'✅ Cumprida' if reg_selecionado.get('cumprido') else '⚠️ Aberta'}
                         """)
 
-                    if st.button("Remover Permanentemente"):
-                        try:
-                            id_d = df_del[df_del['txt'] == it_del]['id'].values[0]
-                            supabase.table("escala_operacional").delete().eq("id", id_d).execute()
-                            st.rerun()
-                        except Exception as e: st.error(f"Erro ao excluir: {e}")
+                        if st.button("Remover Permanentemente"):
+                            try:
+                                id_d = df_del[df_del['txt'] == it_del]['id'].values[0]
+                                supabase.table("escala_operacional").delete().eq("id", id_d).execute()
+                                st.rerun()
+                            except Exception as e: st.error(f"Erro ao excluir: {e}")
 
         # --- ABA ADMIN ADICIONADA DE VOLTA AQUI ---
         elif titulo == "🔑 Admin" and eh_admin:
