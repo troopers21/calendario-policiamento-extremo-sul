@@ -169,7 +169,7 @@ with st.sidebar:
         st.rerun()
 
 # --- 6. ABAS ---
-abas_possiveis = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão"]
+abas_possiveis = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão", "🏠 Gestão Base Integrada"]
 if eh_admin: abas_possiveis.append("🔑 Admin")
 
 titulos_finais = [a for a in abas_possiveis if a in abas_liberadas]
