@@ -151,6 +151,14 @@ territorios = {
     "Costa das Baleias": ["Teixeira de Freitas", "Itamaraju", "Jucuruçu", "Medeiros Neto", "Itanhém", "Lajedão", "Vereda", "Ibirapuã", "Alcobaça", "Prado", "Caravelas", "Mucuri", "Nova Viçosa"]
 }
 
+def carregar_dados_bases():
+    try:
+        res = supabase.table("bases_integradas").select("*").execute()
+        if res.data:
+            return pd.DataFrame(res.data)
+    except: pass
+    return pd.DataFrame(columns=["id", "base_nome", "unidade", "data_inicio", "data_fim", "criado_por"])
+
 # --- 5. INTERFACE SIDEBAR ---
 with st.sidebar:
     st.markdown(f"### 👮 {p_g_user} {nome_user}\n{unidade_user} | {mat_user}")
@@ -336,3 +344,70 @@ for i, titulo in enumerate(titulos_finais):
                                 supabase.table("permissoes_usuarios").upsert({"matricula": user['matricula'], "abas_permitidas": novas_p}).execute()
                                 st.success("Atualizado!")
             except Exception as e: st.error(f"Erro ao carregar usuários: {e}")
+
+        elif titulo == "🏠 Gestão Base Integrada":
+            st.header("🏠 Gestão Base Integrada")
+            
+            col_b1, col_b2 = st.columns([1, 2])
+            
+            with col_b1:
+                st.subheader("📝 Agendar Base")
+                with st.form("form_base", clear_on_submit=True):
+                    # O usuário escolhe qualquer dia, o sistema calcula a semana automaticamente
+                    dt_base = st.date_input("Selecione um dia da semana desejada")
+                    segunda_f = dt_base - datetime.timedelta(days=dt_base.weekday())
+                    domingo_f = segunda_f + datetime.timedelta(days=6)
+                    
+                    st.info(f"**Período:** {segunda_f.strftime('%d/%m/%Y')} a {domingo_f.strftime('%d/%m/%Y')}")
+                    
+                    base_escolhida = st.selectbox("Selecione a Base", ["Base 1", "Base 2", "Base 3", "Base 4"])
+                    unidade_base = st.selectbox("Unidade", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
+                    
+                    if st.form_submit_button("Confirmar Ocupação"):
+                        df_bases = carregar_dados_bases()
+                        ocupado = False
+                        
+                        if not df_bases.empty:
+                            # Regra: Verifica se já tem alguma unidade nesta exata base e nesta exata semana
+                            conflito = df_bases[(df_bases['base_nome'] == base_escolhida) & (df_bases['data_inicio'] == str(segunda_f))]
+                            if not conflito.empty:
+                                ocupado = True
+                                
+                        if ocupado:
+                            st.error(f"⚠️ A {base_escolhida} já está ocupada nesta semana! Escolha outra base ou semana.")
+                        else:
+                            try:
+                                supabase.table("bases_integradas").insert({
+                                    "base_nome": base_escolhida,
+                                    "unidade": unidade_base,
+                                    "data_inicio": str(segunda_f),
+                                    "data_fim": str(domingo_f),
+                                    "criado_por": user_email
+                                }).execute()
+                                st.success("Base agendada com sucesso!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao agendar: {e}")
+
+            with col_b2:
+                st.subheader("📅 Previsão de Ocupação")
+                dt_filtro = st.date_input("Ver a ocupação da semana referente ao dia:", datetime.date.today(), key="filtro_base")
+                segunda_filtro = dt_filtro - datetime.timedelta(days=dt_filtro.weekday())
+                domingo_filtro = segunda_filtro + datetime.timedelta(days=6)
+                
+                st.write(f"**Semana de:** {segunda_filtro.strftime('%d/%m/%Y')} até {domingo_filtro.strftime('%d/%m/%Y')}")
+                
+                df_bases = carregar_dados_bases()
+                if not df_bases.empty:
+                    df_semana = df_bases[df_bases['data_inicio'] == str(segunda_filtro)]
+                    
+                    if not df_semana.empty:
+                        # Formata a tabela para ficar bonita na visualização
+                        df_semana = df_semana[['base_nome', 'unidade', 'data_inicio', 'data_fim']]
+                        df_semana.columns = ['Base', 'Unidade Ocupante', 'Início', 'Fim']
+                        df_semana = df_semana.sort_values(by="Base")
+                        st.dataframe(df_semana, use_container_width=True, hide_index=True)
+                    else:
+                        st.warning("Nenhuma base está ocupada para esta semana.")
+                else:
+                    st.warning("Nenhuma base está ocupada para esta semana.")
