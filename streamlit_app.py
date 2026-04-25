@@ -234,7 +234,10 @@ for i, titulo in enumerate(titulos_finais):
                 with st.form("f_gest_nova", clear_on_submit=True):
                     dt_g = st.date_input("Data da Missão")
                     mu_g = st.selectbox("Município", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
-                    un_g = st.selectbox("Unidade Responsável", ["CPR-ES", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
+                    
+                    # --- A ALTERAÇÃO FOI FEITA AQUI (Linha abaixo) ---
+                    un_g = st.selectbox("Unidade Responsável", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
+                    
                     h_e_prev = st.selectbox("Início Previsto", lista_horas)
                     h_s_prev = st.selectbox("Fim Previsto", lista_horas)
                     miss_obj = st.text_area("Objetivo da Missão")
@@ -285,12 +288,12 @@ for i, titulo in enumerate(titulos_finais):
                 st.subheader("🗑️ Excluir Registro")
                 df_del = carregar_dados_db().sort_values(by='data', ascending=False)
                 if not df_del.empty:
-                    # 1. ALTERAÇÃO: Adicionando a Unidade na lista de seleção
+                    # Adicionando a Unidade na lista de seleção
                     df_del['txt'] = df_del['data'] + " | " + df_del['municipio'] + " | " + df_del['unidade']
                     
                     it_del = st.selectbox("Selecione para excluir:", df_del['txt'].tolist(), key="del_escala")
                     
-                    # 2. ALTERAÇÃO: Exibindo os dados do registro selecionado logo abaixo
+                    # Exibindo os dados do registro selecionado logo abaixo
                     if it_del:
                         reg_selecionado = df_del[df_del['txt'] == it_del].iloc[0]
                         
@@ -308,3 +311,18 @@ for i, titulo in enumerate(titulos_finais):
                             supabase.table("escala_operacional").delete().eq("id", id_d).execute()
                             st.rerun()
                         except Exception as e: st.error(f"Erro ao excluir: {e}")
+
+        # --- ABA ADMIN ADICIONADA DE VOLTA AQUI ---
+        elif titulo == "🔑 Admin" and eh_admin:
+            st.subheader("Gestão de Acessos")
+            try:
+                res_u = supabase.table("lista_usuarios_admin").select("*").execute()
+                if res_u.data:
+                    for user in res_u.data:
+                        with st.expander(f"👤 {user['nome_completo']} ({user['matricula']})"):
+                            p_atual = buscar_permissoes(user['matricula'])
+                            novas_p = st.multiselect("Abas Permitidas:", abas_possiveis, default=p_atual, key=f"p_{user['matricula']}")
+                            if st.button("Atualizar", key=f"b_{user['matricula']}"):
+                                supabase.table("permissoes_usuarios").upsert({"matricula": user['matricula'], "abas_permitidas": novas_p}).execute()
+                                st.success("Atualizado!")
+            except Exception as e: st.error(f"Erro ao carregar usuários: {e}")
