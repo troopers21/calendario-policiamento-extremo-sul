@@ -243,8 +243,13 @@ for i, titulo in enumerate(titulos_finais):
                         df_atual = carregar_dados_db()
                         sobreposicao_detectada = False
                         
-                        # --- LÓGICA DE SOBREPOSIÇÃO (SISTEMA SEM SOBREPOSIÇÃO) ---
-                        if not df_atual.empty:
+                        # Define as unidades que podem ignorar a regra de sobreposição
+                        unidades_excecao = ["CIPPA/PS", "CIPRv-Ita", "Operação Pegasus"]
+                        permite_sobreposicao = un_g in unidades_excecao
+                        
+                        # --- LÓGICA DE SOBREPOSIÇÃO ---
+                        # Só roda a verificação se o banco não estiver vazio E a unidade NÃO for uma exceção
+                        if not df_atual.empty and not permite_sobreposicao:
                             df_dia = df_atual[df_atual['data'] == str(dt_g)]
                             if not df_dia.empty:
                                 inicio_novo = int(h_e_prev.split(":")[0])
