@@ -231,19 +231,28 @@ for i, titulo in enumerate(titulos_finais):
             col_g1, col_g2 = st.columns(2)
             with col_g1:
                 st.subheader("📝 Agendar Missão")
+                
+                # 1. A data foi movida para fora do formulário para ser reativa
+                dt_g = st.date_input("Data da Missão")
+                
+                # 2. Busca e exibe as missões da data selecionada antes de preencher o resto
+                df_atual = carregar_dados_db()
+                if not df_atual.empty:
+                    df_dia = df_atual[df_atual['data'] == str(dt_g)]
+                    if not df_dia.empty:
+                        st.info("📌 **Missões já agendadas para esta data:**")
+                        # Mostra a data, unidade e horários, conforme solicitado
+                        st.dataframe(df_dia[['data', 'unidade', 'hora_entrada', 'hora_saida']], use_container_width=True, hide_index=True)
+
+                # 3. Formulário com os campos restantes
                 with st.form("f_gest_nova", clear_on_submit=True):
-                    dt_g = st.date_input("Data da Missão")
                     mu_g = st.selectbox("Município", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
-                    
-                    # --- A ALTERAÇÃO FOI FEITA AQUI (Linha abaixo) ---
                     un_g = st.selectbox("Unidade Responsável", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
-                    
                     h_e_prev = st.selectbox("Início Previsto", lista_horas)
                     h_s_prev = st.selectbox("Fim Previsto", lista_horas)
                     miss_obj = st.text_area("Objetivo da Missão")
+                    
                     if st.form_submit_button("Agendar Missão"):
-                        
-                        df_atual = carregar_dados_db()
                         sobreposicao_detectada = False
                         
                         # Define as unidades que podem ignorar a regra de sobreposição
@@ -251,15 +260,14 @@ for i, titulo in enumerate(titulos_finais):
                         permite_sobreposicao = un_g in unidades_excecao
                         
                         # --- LÓGICA DE SOBREPOSIÇÃO ---
-                        # Só roda a verificação se o banco não estiver vazio E a unidade NÃO for uma exceção
                         if not df_atual.empty and not permite_sobreposicao:
-                            df_dia = df_atual[df_atual['data'] == str(dt_g)]
-                            if not df_dia.empty:
+                            df_dia_conflito = df_atual[df_atual['data'] == str(dt_g)]
+                            if not df_dia_conflito.empty:
                                 inicio_novo = int(h_e_prev.split(":")[0])
                                 fim_novo = int(h_s_prev.split(":")[0])
                                 if fim_novo <= inicio_novo: fim_novo += 24 # Lida com missões que viram a noite
                                 
-                                for _, row in df_dia.iterrows():
+                                for _, row in df_dia_conflito.iterrows():
                                     try:
                                         inicio_existente = int(str(row['hora_entrada']).split(":")[0])
                                         fim_existente = int(str(row['hora_saida']).split(":")[0])
