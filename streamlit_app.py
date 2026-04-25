@@ -345,6 +345,7 @@ for i, titulo in enumerate(titulos_finais):
                                 st.success("Atualizado!")
             except Exception as e: st.error(f"Erro ao carregar usuários: {e}")
 
+        # --- ABA GESTÃO BASES INTEGRADAS ---
         elif titulo == "🏠 Gestão Base Integrada":
             st.header("🏠 Gestão Base Integrada")
             
@@ -353,14 +354,14 @@ for i, titulo in enumerate(titulos_finais):
             with col_b1:
                 st.subheader("📝 Agendar Base")
                 
-                # --- MOVIDOS PARA FORA DO FORMULÁRIO PARA ATUALIZAR EM TEMPO REAL ---
+                # Calendário reativo (fora do form)
                 dt_base = st.date_input("Selecione um dia da semana desejada")
                 segunda_f = dt_base - datetime.timedelta(days=dt_base.weekday())
                 domingo_f = segunda_f + datetime.timedelta(days=6)
                 
                 st.info(f"**Período:** {segunda_f.strftime('%d/%m/%Y')} a {domingo_f.strftime('%d/%m/%Y')}")
-                # --------------------------------------------------------------------
 
+                # Formulário de Agendamento
                 with st.form("form_base", clear_on_submit=True):
                     base_escolhida = st.selectbox("Selecione a Base", ["Base 1", "Base 2", "Base 3", "Base 4"])
                     unidade_base = st.selectbox("Unidade", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
@@ -387,9 +388,27 @@ for i, titulo in enumerate(titulos_finais):
                                     "criado_por": user_email
                                 }).execute()
                                 st.success("Base agendada com sucesso!")
-                                st.rerun()
+                                st.rerun() # Recarrega a tela instantaneamente
                             except Exception as e:
                                 st.error(f"Erro ao agendar: {e}")
+                
+                # --- NOVA SESSÃO: EXIBIR BASES CADASTRADAS LOGO ABAIXO DO FORMULÁRIO ---
+                st.write(f"**📌 Bases já cadastradas para o período selecionado:**")
+                df_todas_bases = carregar_dados_bases()
+                
+                if not df_todas_bases.empty:
+                    df_semana_selecionada = df_todas_bases[df_todas_bases['data_inicio'] == str(segunda_f)]
+                    
+                    if not df_semana_selecionada.empty:
+                        # Exibe apenas a Base e a Unidade de forma enxuta embaixo do botão
+                        df_semana_selecionada = df_semana_selecionada[['base_nome', 'unidade']]
+                        df_semana_selecionada.columns = ['Base', 'Unidade Ocupante']
+                        df_semana_selecionada = df_semana_selecionada.sort_values(by="Base")
+                        st.dataframe(df_semana_selecionada, use_container_width=True, hide_index=True)
+                    else:
+                        st.caption("Nenhuma base confirmada para este período ainda.")
+                else:
+                    st.caption("Nenhuma base confirmada para este período ainda.")
 
             with col_b2:
                 st.subheader("📅 Previsão de Ocupação")
