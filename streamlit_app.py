@@ -285,25 +285,26 @@ for i, titulo in enumerate(titulos_finais):
                 st.subheader("🗑️ Excluir Registro")
                 df_del = carregar_dados_db().sort_values(by='data', ascending=False)
                 if not df_del.empty:
-                    df_del['txt'] = df_del['data'] + " | " + df_del['municipio']
+                    # 1. ALTERAÇÃO: Adicionando a Unidade na lista de seleção
+                    df_del['txt'] = df_del['data'] + " | " + df_del['municipio'] + " | " + df_del['unidade']
+                    
                     it_del = st.selectbox("Selecione para excluir:", df_del['txt'].tolist(), key="del_escala")
+                    
+                    # 2. ALTERAÇÃO: Exibindo os dados do registro selecionado logo abaixo
+                    if it_del:
+                        reg_selecionado = df_del[df_del['txt'] == it_del].iloc[0]
+                        
+                        # Mostra um pequeno painel com o resumo da missão para o usuário confirmar
+                        st.info(f"""
+                        **Detalhes da Missão:**
+                        * **Horário Previsto:** {reg_selecionado['hora_entrada']} às {reg_selecionado['hora_saida']}
+                        * **Objetivo:** {reg_selecionado.get('missao', 'Não preenchido')}
+                        * **Status:** {'✅ Cumprida' if reg_selecionado.get('cumprido') else '⚠️ Aberta'}
+                        """)
+
                     if st.button("Remover Permanentemente"):
                         try:
                             id_d = df_del[df_del['txt'] == it_del]['id'].values[0]
                             supabase.table("escala_operacional").delete().eq("id", id_d).execute()
                             st.rerun()
                         except Exception as e: st.error(f"Erro ao excluir: {e}")
-
-        elif titulo == "🔑 Admin" and eh_admin:
-            st.subheader("Gestão de Acessos")
-            try:
-                res_u = supabase.table("lista_usuarios_admin").select("*").execute()
-                if res_u.data:
-                    for user in res_u.data:
-                        with st.expander(f"👤 {user['nome_completo']} ({user['matricula']})"):
-                            p_atual = buscar_permissoes(user['matricula'])
-                            novas_p = st.multiselect("Abas Permitidas:", abas_possiveis, default=p_atual, key=f"p_{user['matricula']}")
-                            if st.button("Atualizar", key=f"b_{user['matricula']}"):
-                                supabase.table("permissoes_usuarios").upsert({"matricula": user['matricula'], "abas_permitidas": novas_p}).execute()
-                                st.success("Atualizado!")
-            except Exception as e: st.error(f"Erro ao carregar usuários: {e}")
