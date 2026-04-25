@@ -392,23 +392,23 @@ for i, titulo in enumerate(titulos_finais):
                             except Exception as e:
                                 st.error(f"Erro ao agendar: {e}")
                 
-                # --- NOVA SESSÃO: EXIBIR BASES CADASTRADAS LOGO ABAIXO DO FORMULÁRIO ---
-                st.write(f"**📌 Bases já cadastradas para o período selecionado:**")
+                # --- NOVA SESSÃO: EXIBIR TODAS AS BASES CADASTRADAS (SEM FILTRO) ---
+                st.write("**📌 Todas as bases já cadastradas no sistema:**")
                 df_todas_bases = carregar_dados_bases()
                 
                 if not df_todas_bases.empty:
-                    df_semana_selecionada = df_todas_bases[df_todas_bases['data_inicio'] == str(segunda_f)]
+                    # Aqui removemos o filtro da "semana selecionada" para exibir o histórico completo
+                    df_exibicao = df_todas_bases[['base_nome', 'unidade', 'data_inicio', 'data_fim']]
                     
-                    if not df_semana_selecionada.empty:
-                        # Exibe apenas a Base e a Unidade de forma enxuta embaixo do botão
-                        df_semana_selecionada = df_semana_selecionada[['base_nome', 'unidade']]
-                        df_semana_selecionada.columns = ['Base', 'Unidade Ocupante']
-                        df_semana_selecionada = df_semana_selecionada.sort_values(by="Base")
-                        st.dataframe(df_semana_selecionada, use_container_width=True, hide_index=True)
-                    else:
-                        st.caption("Nenhuma base confirmada para este período ainda.")
+                    # Renomeando as 4 colunas conforme você solicitou
+                    df_exibicao.columns = ['Base', 'Unidade Ocupante', 'Início', 'Fim']
+                    
+                    # Ordena para que os agendamentos mais recentes apareçam primeiro
+                    df_exibicao = df_exibicao.sort_values(by=["Início", "Base"], ascending=[False, True])
+                    
+                    st.dataframe(df_exibicao, use_container_width=True, hide_index=True)
                 else:
-                    st.caption("Nenhuma base confirmada para este período ainda.")
+                    st.caption("Nenhuma base confirmada no sistema ainda.")
 
             with col_b2:
                 st.subheader("📅 Previsão de Ocupação")
