@@ -79,7 +79,7 @@ if st.session_state.user_session is None:
     aba_auth = st.tabs(["🔐 Entrar", "📝 Cadastrar-se"])
     with aba_auth[0]:
         with st.form("login_form"):
-            email_in = st.text_input("E-mail Funcional") 
+            email_in = st.text_input("E-mail") 
             senha_in = st.text_input("Senha", type="password")
             if st.form_submit_button("Acessar Sistema", use_container_width=True):
                 try:
