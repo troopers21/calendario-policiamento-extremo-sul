@@ -352,14 +352,16 @@ for i, titulo in enumerate(titulos_finais):
             
             with col_b1:
                 st.subheader("📝 Agendar Base")
+                
+                # --- MOVIDOS PARA FORA DO FORMULÁRIO PARA ATUALIZAR EM TEMPO REAL ---
+                dt_base = st.date_input("Selecione um dia da semana desejada")
+                segunda_f = dt_base - datetime.timedelta(days=dt_base.weekday())
+                domingo_f = segunda_f + datetime.timedelta(days=6)
+                
+                st.info(f"**Período:** {segunda_f.strftime('%d/%m/%Y')} a {domingo_f.strftime('%d/%m/%Y')}")
+                # --------------------------------------------------------------------
+
                 with st.form("form_base", clear_on_submit=True):
-                    # O usuário escolhe qualquer dia, o sistema calcula a semana automaticamente
-                    dt_base = st.date_input("Selecione um dia da semana desejada")
-                    segunda_f = dt_base - datetime.timedelta(days=dt_base.weekday())
-                    domingo_f = segunda_f + datetime.timedelta(days=6)
-                    
-                    st.info(f"**Período:** {segunda_f.strftime('%d/%m/%Y')} a {domingo_f.strftime('%d/%m/%Y')}")
-                    
                     base_escolhida = st.selectbox("Selecione a Base", ["Base 1", "Base 2", "Base 3", "Base 4"])
                     unidade_base = st.selectbox("Unidade", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
                     
