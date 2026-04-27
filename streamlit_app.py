@@ -151,10 +151,10 @@ with st.sidebar:
         st.rerun()
 
 # --- 6. ABAS ---
+abas_liberadas = buscar_permissoes(mat_user)
 abas_possiveis = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão", "🏠 Gestão Base Integrada"]
 if mat_user == MATRICULA_ADMIN: abas_possiveis.append("🔑 Admin")
 
-abas_liberadas = buscar_permissoes(mat_user)
 titulos_finais = [a for a in abas_possiveis if a in abas_liberadas]
 tabs = st.tabs(titulos_finais)
 
@@ -217,6 +217,12 @@ for i, titulo in enumerate(titulos_finais):
                 with st.form("f_gest_nova", clear_on_submit=True):
                     mu_g = st.selectbox("Município", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
                     un_g = st.selectbox("Unidade Responsável", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
+                    
+                    # NOVOS CAMPOS: Comandante e Viatura lado a lado 
+                    col_nv1, col_nv2 = st.columns(2)
+                    cmt_g = col_nv1.text_input("Comandante da Guarnição")
+                    vtr_g = col_nv2.text_input("Prefixo da Viatura")
+                    
                     h_e_prev = st.selectbox("Início Previsto", lista_horas)
                     h_s_prev = st.selectbox("Fim Previsto", lista_horas)
                     miss_obj = st.text_area("Objetivo da Missão")
@@ -237,8 +243,10 @@ for i, titulo in enumerate(titulos_finais):
                             st.error("⚠️ Já existe uma missão neste horário.")
                         else:
                             try:
+                                # INSERT ATUALIZADO com os novos campos 
                                 supabase.table("escala_operacional").insert({
                                     "data": str(dt_g), "municipio": mu_g, "unidade": un_g,
+                                    "comandante_nome": cmt_g, "viatura": vtr_g,
                                     "hora_entrada": h_e_prev, "hora_saida": h_s_prev, 
                                     "missao": miss_obj, "criado_por": user_email
                                 }).execute()
