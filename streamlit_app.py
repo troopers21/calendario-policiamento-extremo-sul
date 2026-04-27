@@ -253,52 +253,66 @@ for i, titulo in enumerate(titulos_finais):
                         st.dataframe(df_dia[['data', 'unidade', 'hora_entrada', 'hora_saida']], use_container_width=True, hide_index=True)
 
                 # 3. Formulário com os campos restantes
-                with st.form("f_gest_nova", clear_on_submit=True):
-                    mu_g = st.selectbox("Município", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
-                    un_g = st.selectbox("Unidade Responsável", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
-                    h_e_prev = st.selectbox("Início Previsto", lista_horas)
-                    h_s_prev = st.selectbox("Fim Previsto", lista_horas)
-                    miss_obj = st.text_area("Objetivo da Missão")
-                    
-                    if st.form_submit_button("Agendar Missão"):
-                        sobreposicao_detectada = False
+                # --- Trecho para substituir dentro de 'elif titulo == "⚙️ Gestão":' -> 'with col_g1:' ---
+
+with st.form("f_gest_nova", clear_on_submit=True):
+    mu_g = st.selectbox("Município", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
+    un_g = st.selectbox("Unidade Responsável", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
+    
+    # NOVOS CAMPOS SOLICITADOS
+    col_nova1, col_nova2 = st.columns(2)
+    cmt_g = col_nova1.text_input("Comandante da Guarnição")
+    vtr_g = col_nova2.text_input("Prefixo da Viatura")
+    
+    h_e_prev = st.selectbox("Início Previsto", lista_horas)
+    h_s_prev = st.selectbox("Fim Previsto", lista_horas)
+    miss_obj = st.text_area("Objetivo da Missão")
+    
+    if st.form_submit_button("Agendar Missão"):
+        sobreposicao_detectada = False
+        unidades_excecao = ["CIPPA/PS", "CIPRv-Ita", "Operação Pegasus"]
+        permite_sobreposicao = un_g in unidades_excecao
+        
+        # --- LÓGICA DE SOBREPOSIÇÃO ---
+        if not df_atual.empty and not permite_sobreposicao:
+            df_dia_conflito = df_atual[df_atual['data'] == str(dt_g)]
+            if not df_dia_conflito.empty:
+                inicio_novo = int(h_e_prev.split(":")[0])
+                fim_novo = int(h_s_prev.split(":")[0])
+                if fim_novo <= inicio_novo: fim_novo += 24
+                
+                for _, row in df_dia_conflito.iterrows():
+                    try:
+                        inicio_existente = int(str(row['hora_entrada']).split(":")[0])
+                        fim_existente = int(str(row['hora_saida']).split(":")[0])
+                        if fim_existente <= inicio_existente: fim_existente += 24
                         
-                        # Define as unidades que podem ignorar a regra de sobreposição
-                        unidades_excecao = ["CIPPA/PS", "CIPRv-Ita", "Operação Pegasus"]
-                        permite_sobreposicao = un_g in unidades_excecao
-                        
-                        # --- LÓGICA DE SOBREPOSIÇÃO ---
-                        if not df_atual.empty and not permite_sobreposicao:
-                            df_dia_conflito = df_atual[df_atual['data'] == str(dt_g)]
-                            if not df_dia_conflito.empty:
-                                inicio_novo = int(h_e_prev.split(":")[0])
-                                fim_novo = int(h_s_prev.split(":")[0])
-                                if fim_novo <= inicio_novo: fim_novo += 24 # Lida com missões que viram a noite
-                                
-                                for _, row in df_dia_conflito.iterrows():
-                                    try:
-                                        inicio_existente = int(str(row['hora_entrada']).split(":")[0])
-                                        fim_existente = int(str(row['hora_saida']).split(":")[0])
-                                        if fim_existente <= inicio_existente: fim_existente += 24
-                                        
-                                        # Fórmula para verificar se dois intervalos de tempo se cruzam
-                                        if (inicio_novo < fim_existente) and (fim_novo > inicio_existente):
-                                            sobreposicao_detectada = True
-                                            break
-                                    except:
-                                        pass
-                        
-                        if sobreposicao_detectada:
-                            st.error("⚠️ REGRA DE SOBREPOSIÇÃO: Já existe uma missão cadastrada que conflita com este mesmo dia e horário. Por favor, escolha outro horário ou dia.")
-                        else:
-                            try:
-                                supabase.table("escala_operacional").insert({
-                                    "data": str(dt_g), "municipio": mu_g, "unidade": un_g, 
-                                    "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj,
-                                    "criado_por": user_email
-                                }).execute()
-                                st.success("Missão agendada com sucesso!"); st.rerun()
-                            except Exception as e: st.error(f"Falha no agendamento: {e}")
+                        if (inicio_novo < fim_existente) and (fim_novo > inicio_existente):
+                            sobreposicao_detectada = True
+                            break
+                    except:
+                        pass
+
+        if sobreposicao_detectada:
+            st.error("⚠️ REGRA DE SOBREPOSIÇÃO: Já existe uma missão que conflita com este horário.")
+        else:
+            try:
+                # ADICIONADO cmt_g e vtr_g NO INSERT ABAIXO
+                supabase.table("escala_operacional").insert({
+                    "data": str(dt_g), 
+                    "municipio": mu_g, 
+                    "unidade": un_g,
+                    "comandante_nome": cmt_g,
+                    "viatura": vtr_g,
+                    "hora_entrada": h_e_prev, 
+                    "hora_saida": h_s_prev, 
+                    "missao": miss_obj,
+                    "criado_por": user_email
+                }).execute()
+                st.success("Missão agendada com sucesso!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Falha no agendamento: {e}")
 
             with col_g2:
                 st.subheader("🗑️ Excluir Registro")
