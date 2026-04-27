@@ -240,7 +240,8 @@ for i, titulo in enumerate(titulos_finais):
                     df_dia = df_atual[df_atual['data'] == str(dt_g)]
                     if not df_dia.empty:
                         st.info("📌 Missões já agendadas para esta data:")
-                        st.dataframe(df_dia[['data', 'unidade', 'hora_entrada', 'hora_saida']], use_container_width=True, hide_index=True)
+                        # Cidade inserida conforme pedido
+                        st.dataframe(df_dia[['data', 'unidade', 'municipio', 'hora_entrada', 'hora_saida']], use_container_width=True, hide_index=True)
 
                 with st.form("f_gest_nova", clear_on_submit=True):
                     mu_g = st.selectbox("Município", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
@@ -255,16 +256,24 @@ for i, titulo in enumerate(titulos_finais):
                     miss_obj = st.text_area("Objetivo da Missão")
                     
                     if st.form_submit_button("Agendar Missão"):
-                        unidades_excecao = ["CIPPA/PS", "CIPRv-Ita", "Operação Pegasus"]
-                        permite_sobreposicao = un_g in unidades_excecao
+                        # --- NOVA LÓGICA DE SOBREPOSIÇÃO ---
+                        unidades_com_sobreposicao = ["CIPE-MA", "CIPT-ES"]
+                        aplica_sobreposicao = un_g in unidades_com_sobreposicao
                         sobreposicao_detectada = False
                         
-                        if not df_atual.empty and not permite_sobreposicao:
-                            df_dia_conflito = df_atual[df_atual['data'] == str(dt_g)]
+                        # Só checa se o banco tem dados E a unidade for CIPE-MA ou CIPT-ES
+                        if not df_atual.empty and aplica_sobreposicao:
+                            # Filtra conflitos exatos: mesmo dia, MESMA CIDADE e unidades restritas
+                            df_dia_conflito = df_atual[
+                                (df_atual['data'] == str(dt_g)) & 
+                                (df_atual['municipio'] == mu_g) & 
+                                (df_atual['unidade'].isin(unidades_com_sobreposicao))
+                            ]
+                            
                             if not df_dia_conflito.empty:
                                 inicio_novo = int(h_e_prev.split(":")[0])
                                 fim_novo = int(h_s_prev.split(":")[0])
-                                if fim_novo <= inicio_novo: fim_novo += 24
+                                if fim_novo <= inicio_novo: fim_novo += 24 # Lida com missões que viram a noite
                                 
                                 for _, row in df_dia_conflito.iterrows():
                                     try:
@@ -272,6 +281,7 @@ for i, titulo in enumerate(titulos_finais):
                                         fim_existente = int(str(row['hora_saida']).split(":")[0])
                                         if fim_existente <= inicio_existente: fim_existente += 24
                                         
+                                        # Fórmula para verificar se dois intervalos de tempo se cruzam
                                         if (inicio_novo < fim_existente) and (fim_novo > inicio_existente):
                                             sobreposicao_detectada = True
                                             break
@@ -279,7 +289,7 @@ for i, titulo in enumerate(titulos_finais):
                                         pass
 
                         if sobreposicao_detectada:
-                            st.error("⚠️ REGRA DE SOBREPOSIÇÃO: Já existe uma missão cadastrada que conflita com este mesmo dia e horário. Por favor, escolha outro horário ou dia.")
+                            st.error("⚠️ REGRA DE SOBREPOSIÇÃO: Já existe uma missão da CIPE-MA ou CIPT-ES agendada para esta mesma cidade neste horário.")
                         else:
                             try:
                                 supabase.table("escala_operacional").insert({
