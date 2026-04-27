@@ -238,19 +238,62 @@ for i, titulo in enumerate(titulos_finais):
         elif titulo == "⚙️ Gestão":
             col_g1, col_g2 = st.columns(2)
             with col_g1:
-                st.subheader("📝 Agendar Missão")
-                
-                # 1. A data foi movida para fora do formulário para ser reativa
-                dt_g = st.date_input("Data da Missão")
-                
-                # 2. Busca e exibe as missões da data selecionada antes de preencher o resto
-                df_atual = carregar_dados_db()
-                if not df_atual.empty:
-                    df_dia = df_atual[df_atual['data'] == str(dt_g)]
-                    if not df_dia.empty:
-                        st.info("📌 **Missões já agendadas para esta data:**")
-                        # Mostra a data, unidade e horários, conforme solicitado
-                        st.dataframe(df_dia[['data', 'unidade', 'hora_entrada', 'hora_saida']], use_container_width=True, hide_index=True)
+    st.subheader("📝 Agendar Missão")
+    
+    # Data fora do formulário para permitir a visualização reativa das missões existentes
+    dt_g = st.date_input("Data da Missão", key="data_gestao_nova")
+    
+    # Busca e exibe missões já agendadas para evitar conflitos visuais
+    df_atual = carregar_dados_db()
+    if not df_atual.empty:
+        df_dia = df_atual[df_atual['data'] == str(dt_g)]
+        if not df_dia.empty:
+            st.info("📌 Missões já agendadas para esta data:")
+            st.dataframe(df_dia[['unidade', 'hora_entrada', 'hora_saida']], use_container_width=True, hide_index=True)
+
+    with st.form("f_gest_nova", clear_on_submit=True):
+        mu_g = st.selectbox("Município", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
+        un_g = st.selectbox("Unidade Responsável", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
+        
+        # NOVOS CAMPOS: Nome do Comandante e Viatura lado a lado
+        c_campos1, c_campos2 = st.columns(2)
+        cmt_g = c_campos1.text_input("Comandante da Guarnição")
+        vtr_g = c_campos2.text_input("Prefixo da Viatura")
+        
+        h_e_prev = st.selectbox("Início Previsto", lista_horas)
+        h_s_prev = st.selectbox("Fim Previsto", lista_horas)
+        miss_obj = st.text_area("Objetivo da Missão")
+        
+        if st.form_submit_button("Agendar Missão"):
+            unidades_excecao = ["CIPPA/PS", "CIPRv-Ita", "Operação Pegasus"]
+            permite_sobreposicao = un_g in unidades_excecao
+            sobreposicao_detectada = False
+            
+            # Lógica de verificação de horários
+            if not df_atual.empty and not permite_sobreposicao:
+                df_conflito = df_atual[df_atual['data'] == str(dt_g)]
+                # ... (sua lógica de cálculo de horas aqui) ...
+
+            if sobreposicao_detectada:
+                st.error("⚠️ REGRA DE SOBREPOSIÇÃO: Já existe uma missão neste horário.")
+            else:
+                try:
+                    # INSERT atualizado com os novos campos para o Supabase
+                    supabase.table("escala_operacional").insert({
+                        "data": str(dt_g), 
+                        "municipio": mu_g, 
+                        "unidade": un_g,
+                        "comandante_nome": cmt_g, # Novo campo
+                        "viatura": vtr_g,         # Novo campo
+                        "hora_entrada": h_e_prev, 
+                        "hora_saida": h_s_prev, 
+                        "missao": miss_obj,
+                        "criado_por": user_email
+                    }).execute()
+                    st.success("Missão agendada com sucesso!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Falha no agendamento: {e}")
 
                 # 3. Formulário com os campos restantes
                 # --- Trecho para substituir dentro de 'elif titulo == "⚙️ Gestão":' -> 'with col_g1:' ---
