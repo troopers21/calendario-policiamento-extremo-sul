@@ -14,7 +14,7 @@ supabase: Client = create_client(url, key)
 
 st.set_page_config(page_title="SISPOSIÇÃO - PMBA - CPR-ES", layout="wide", page_icon="🛡️")
 
-# Inicia o gerenciador de Cookies [cite: 298]
+# Inicia o gerenciador de Cookies
 cookie_manager = stx.CookieManager(key="gerenciador_cookies")
 
 if "esperou_cookies" not in st.session_state:
@@ -27,7 +27,7 @@ if cookies_gerais is None:
     st.markdown("🔄 Sincronizando sessão segura... Aguarde.", unsafe_allow_html=True)
     st.stop()
 
-# --- LÓGICA DE COOKIES E SESSÃO ---
+# --- LÓGICA DE SESSÃO ---
 if "temp_access_token" in st.session_state:
     validade = datetime.datetime.now() + datetime.timedelta(days=30)
     cookie_manager.set("sb_access_token", st.session_state.temp_access_token, expires_at=validade, key="set_acc")
@@ -73,8 +73,7 @@ if st.session_state.user_session is None:
     aba_auth = st.tabs(["🔐 Entrar", "📝 Cadastrar-se"])
     with aba_auth[0]:
         with st.form("login_form"):
-            # Alterado de 'E-mail Funcional' para 'Email' conforme solicitado [cite: 3, 301]
-            email_in = st.text_input("Email") 
+            email_in = st.text_input("Email")
             senha_in = st.text_input("Senha", type="password")
             if st.form_submit_button("Acessar Sistema", use_container_width=True):
                 try:
@@ -92,7 +91,6 @@ if st.session_state.user_session is None:
     with aba_auth[1]:
         with st.form("register_form"):
             lista_p = ["Cel PM", "Ten Cel PM", "Maj PM", "Cap PM", "Ten PM", "Asp PM", "Subten PM", "Sgt PM", "Cb PM", "Sd PM"]
-            # Atualizado: CPR-ES removido e Operação Pegasus adicionado [cite: 7, 216]
             lista_u = ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"]
             c_r1, c_r2 = st.columns(2)
             posto_grad = c_r1.selectbox("Posto/Graduação", lista_p)
@@ -153,14 +151,11 @@ with st.sidebar:
         st.rerun()
 
 # --- 6. ABAS ---
-# Adicionada a aba 'Gestão Base Integrada' [cite: 171]
 abas_possiveis = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão", "🏠 Gestão Base Integrada"]
 if mat_user == MATRICULA_ADMIN: abas_possiveis.append("🔑 Admin")
 
 abas_liberadas = buscar_permissoes(mat_user)
 titulos_finais = [a for a in abas_possiveis if a in abas_liberadas]
-if not titulos_finais: titulos_finais = ["✅ Cumprimento"]
-
 tabs = st.tabs(titulos_finais)
 
 for i, titulo in enumerate(titulos_finais):
@@ -182,7 +177,7 @@ for i, titulo in enumerate(titulos_finais):
                 for r, cidades in territorios.items():
                     df_r = df_all[df_all['municipio'].isin(cidades)]
                     if not df_r.empty:
-                        with st.expander(f"📍 {r}", expanded=True): # Mantida visualização expandida [cite: 286]
+                        with st.expander(f"📍 {r}", expanded=True):
                             df_r['Situação'] = df_r['cumprido'].map({True: "✅ OK", False: "⚠️ Aberto"})
                             st.dataframe(df_r[['data', 'municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Situação', 'missao']], use_container_width=True, hide_index=True)
 
@@ -211,37 +206,28 @@ for i, titulo in enumerate(titulos_finais):
             col_g1, col_g2 = st.columns(2)
             with col_g1:
                 st.subheader("📝 Agendar Missão")
-                # Data movida para fora do form para reatividade [cite: 149, 213]
                 dt_g = st.date_input("Data da Missão", key="dt_gestao")
                 df_atual = carregar_dados_db()
                 if not df_atual.empty:
                     df_dia = df_atual[df_atual['data'] == str(dt_g)]
                     if not df_dia.empty:
-                        st.info("📌 Missões já agendadas para esta data:") [cite: 214]
-                        st.dataframe(df_dia[['unidade', 'hora_entrada', 'hora_saida']], use_container_width=True, hide_index=True) [cite: 215]
+                        st.info("📌 Missões já agendadas para esta data:")
+                        st.dataframe(df_dia[['unidade', 'hora_entrada', 'hora_saida']], use_container_width=True, hide_index=True)
 
                 with st.form("f_gest_nova", clear_on_submit=True):
                     mu_g = st.selectbox("Município", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
-                    un_g = st.selectbox("Unidade Responsável", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"]) [cite: 216]
-                    
-                    # Novos campos: Comandante e Viatura [cite: 309]
-                    col_nova1, col_nova2 = st.columns(2)
-                    cmt_g = col_nova1.text_input("Comandante da Guarnição")
-                    vtr_g = col_nova2.text_input("Prefixo da Viatura")
-                    
+                    un_g = st.selectbox("Unidade Responsável", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
                     h_e_prev = st.selectbox("Início Previsto", lista_horas)
                     h_s_prev = st.selectbox("Fim Previsto", lista_horas)
                     miss_obj = st.text_area("Objetivo da Missão")
                     
                     if st.form_submit_button("Agendar Missão"):
-                        # Exceção de sobreposição [cite: 65, 128]
                         unidades_excecao = ["CIPPA/PS", "CIPRv-Ita", "Operação Pegasus"]
                         permite_sobreposicao = un_g in unidades_excecao
                         sobreposicao = False
                         
                         if not df_atual.empty and not permite_sobreposicao:
                             df_conf = df_atual[df_atual['data'] == str(dt_g)]
-                            # Lógica simplificada de verificação de horários
                             for _, row in df_conf.iterrows():
                                 if (h_e_prev < row['hora_saida']) and (h_s_prev > row['hora_entrada']):
                                     sobreposicao = True
@@ -253,7 +239,6 @@ for i, titulo in enumerate(titulos_finais):
                             try:
                                 supabase.table("escala_operacional").insert({
                                     "data": str(dt_g), "municipio": mu_g, "unidade": un_g,
-                                    "comandante_nome": cmt_g, "viatura": vtr_g, # Adicionados [cite: 310]
                                     "hora_entrada": h_e_prev, "hora_saida": h_s_prev, 
                                     "missao": miss_obj, "criado_por": user_email
                                 }).execute()
@@ -266,13 +251,12 @@ for i, titulo in enumerate(titulos_finais):
                 df_del = carregar_dados_db().sort_values(by='data', ascending=False)
                 if not df_del.empty:
                     df_del['txt'] = df_del['data'] + " | " + df_del['municipio'] + " | " + df_del['unidade']
-                    # Adicionada opção em branco padrão [cite: 156, 227]
                     opcoes = [""] + df_del['txt'].tolist()
                     it_del = st.selectbox("Selecione para excluir:", opcoes, index=0, key="del_escala")
                     
                     if it_del != "":
                         reg = df_del[df_del['txt'] == it_del].iloc[0]
-                        st.info(f"Detalhes: {reg['hora_entrada']} às {reg['hora_saida']} | {reg.get('missao', '')}") [cite: 139]
+                        st.info(f"Detalhes: {reg['hora_entrada']} às {reg['hora_saida']} | {reg.get('missao', '')}")
                         if st.button("Remover Permanentemente"):
                             try:
                                 supabase.table("escala_operacional").delete().eq("id", reg['id']).execute()
@@ -284,11 +268,10 @@ for i, titulo in enumerate(titulos_finais):
             col_b1, col_b2 = st.columns([1, 2])
             with col_b1:
                 st.subheader("📝 Agendar Base")
-                # Data fora do formulário para reatividade [cite: 261]
                 dt_base = st.date_input("Selecione o dia da semana", key="dt_base")
                 segunda = dt_base - datetime.timedelta(days=dt_base.weekday())
                 domingo = segunda + datetime.timedelta(days=6)
-                st.info(f"Período: {segunda.strftime('%d/%m/%Y')} a {domingo.strftime('%d/%m/%Y')}") [cite: 235]
+                st.info(f"Período: {segunda.strftime('%d/%m/%Y')} a {domingo.strftime('%d/%m/%Y')}")
                 
                 with st.form("form_base", clear_on_submit=True):
                     base_sel = st.selectbox("Base", ["Base 1", "Base 2", "Base 3", "Base 4"])
@@ -300,11 +283,10 @@ for i, titulo in enumerate(titulos_finais):
                             st.rerun()
                         except Exception as e: st.error(f"Erro: {e}")
                 
-                # Histórico geral [cite: 275]
-                st.write("---")
+                st.divider()
                 df_b = carregar_dados_bases()
                 if not df_b.empty:
-                    st.write("📋 Todas as Ocupações Cadastradas:")
+                    st.write("📋 Histórico Geral de Ocupações:")
                     st.dataframe(df_b[['base_nome', 'unidade', 'data_inicio', 'data_fim']], use_container_width=True, hide_index=True)
 
             with col_b2:
