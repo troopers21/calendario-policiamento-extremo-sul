@@ -46,7 +46,7 @@ if "temp_logout" in st.session_state:
 # --- 2. CABEÇALHO ---
 col_logo1, col_logo2, col_logo3 = st.columns([0.5, 2.0, 0.5])
 with col_logo2:
-    try: st.image("LogosCircular.png", use_container_width=True)
+    try: st.image("logo_unidade.jpeg", use_container_width=True)
     except: pass
     st.markdown("🛡️ SISPOSIÇÃO - Sistema de Policiamento Sem Sobreposição", unsafe_allow_html=True)
 
