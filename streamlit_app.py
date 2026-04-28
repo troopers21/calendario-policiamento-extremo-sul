@@ -46,11 +46,11 @@ if "temp_logout" in st.session_state:
     del st.session_state["temp_logout"]
 
 # --- 2. CABEÇALHO ---
-col_logo1, col_logo2, col_logo3 = st.columns([0.5, 2.0, 0.5])
-with col_logo2:
-    try: st.image("logo_unidade.jpeg", use_container_width=True)
+col_logo1, col_logo2, col_logo3 = st.columns([1.0, 1.0, 1.0]) 
+with col_logo2: 
+    try: st.image("LogosCircular.png", use_container_width=True)      
     except: pass
-    st.markdown("<h2 style='text-align: center;'>🛡️ SISPOSIÇÃO<br>Sistema de Policiamento Sem Sobreposição — Operação Pegasus</h2>", unsafe_allow_html=True)
+    st.markdown("🛡️ SISPOSIÇÃO Sistema de Policiamento Sem Sobreposição — CPR-ES", unsafe_allow_html=True)
 
 # --- 3. LÓGICA DE AUTENTICAÇÃO ---
 if "user_session" not in st.session_state:
