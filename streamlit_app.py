@@ -50,6 +50,7 @@ col_logo1, col_logo2, col_logo3 = st.columns([2.5, 1.0, 2.5])
 with col_logo2: 
     try: st.image("LogosCircular.png", use_container_width=True)      
     except: pass
+        
     
 # --- 3. LÓGICA DE AUTENTICAÇÃO ---
 if "user_session" not in st.session_state:
@@ -72,11 +73,18 @@ if st.session_state.user_session is None:
         except: pass
 
 # TELA DE LOGIN / CADASTRO
-if st.session_state.user_session is None:
-    aba_auth = st.tabs(["🔐 Entrar", "📝 Cadastrar-se"])
-    with aba_auth[0]:
-        with st.form("login_form"):
+
+if st.session_state.user_session is None: 
+    
+    # --- NOVO TEXTO FORMATADO AQUI ---
+    st.markdown('<div style="text-align: center; font-weight: bold; font-size: 120%;">🛡️ SISPOSIÇÃO Sistema de Policiamento Sem Sobreposição — CPR-ES</div>', unsafe_allow_html=True)
+    st.write("") # Adiciona uma linha em branco para dar um respiro antes do login
+    
+    aba_auth = st.tabs(["🔐 Entrar", "📝 Cadastrar-se"]) 
+    with aba_auth[0]: 
+        with st.form("login_form"): 
             email_in = st.text_input("Email")
+            # ... o restante do seu código continua normal
             senha_in = st.text_input("Senha", type="password")
             if st.form_submit_button("Acessar Sistema", use_container_width=True):
                 try:
