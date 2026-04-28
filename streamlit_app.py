@@ -234,32 +234,40 @@ for i, titulo in enumerate(titulos_finais):
             df_c = carregar_dados_db().sort_values(by="data", ascending=False)
             if not df_c.empty:
                 df_c['sel'] = df_c['data'] + " | " + df_c['municipio'] + " | " + df_c['unidade']
-                it = st.selectbox("Selecione a Missão:", df_c['sel'].tolist(), key="sel_cump")
-                d = df_c[df_c['sel'] == it].iloc[0]
-                with st.form("f_cump_completo"):
-                    col_c1, col_c2 = st.columns(2)
-                    n_cmt = col_c1.text_input("Comandante da Guarnição", d.get('comandante_nome') or f"{p_g_user} {nome_user}")
-                    m_cmt = col_c2.text_input("Matrícula do Cmt Gu", d.get('comandante_matricula') or mat_user)
-                    v_pref = col_c1.text_input("Viatura (Prefixo)", d.get('viatura', ''))
-                    
-                    c_h1, c_h2 = st.columns(2)
-                    h_e_real = c_h1.selectbox("Horário de Início Real", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
-                    h_s_real = c_h2.selectbox("Horário de Término Real", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
-                    
-                    rel_det = st.text_area("Relatório Resumido da Missão", d.get('relatorio_resumido', ''))
-                    conf_c = st.checkbox("Missão Cumprida Totalmente", value=bool(d.get('cumprido')))
-                    
-                    if st.form_submit_button("Salvar Dados"):
-                        try:
-                            supabase.table("escala_operacional").update({
-                                "comandante_nome": n_cmt, "comandante_matricula": m_cmt, "viatura": v_pref,
-                                "hora_entrada": h_e_real, "hora_saida": h_s_real, "relatorio_resumido": rel_det,
-                                "cumprido": conf_c, "ultima_edicao": datetime.datetime.now().isoformat(),
-                                "editado_por": user_email
-                            }).eq("id", d['id']).execute()
-                            st.success("Salvo com sucesso!")
-                            st.rerun()
-                        except Exception as e: st.error(f"Erro ao salvar: {e}")
+                
+                # 1. Cria a lista com uma opção em branco no topo
+                opcoes_missao = [""] + df_c['sel'].tolist()
+                
+                # 2. Renderiza a caixa de seleção padrão no índice 0 (em branco)
+                it = st.selectbox("Selecione a Missão:", opcoes_missao, index=0, key="sel_cump")
+                
+                # 3. Só carrega os dados e o formulário se uma missão foi escolhida
+                if it != "":
+                    d = df_c[df_c['sel'] == it].iloc[0]
+                    with st.form("f_cump_completo"):
+                        col_c1, col_c2 = st.columns(2)
+                        n_cmt = col_c1.text_input("Comandante da Guarnição", d.get('comandante_nome') or f"{p_g_user} {nome_user}")
+                        m_cmt = col_c2.text_input("Matrícula do Cmt Gu", d.get('comandante_matricula') or mat_user)
+                        v_pref = col_c1.text_input("Viatura (Prefixo)", d.get('viatura', ''))
+                        
+                        c_h1, c_h2 = st.columns(2)
+                        h_e_real = c_h1.selectbox("Horário de Início Real", lista_horas, index=lista_horas.index(d['hora_entrada']) if d['hora_entrada'] in lista_horas else 0)
+                        h_s_real = c_h2.selectbox("Horário de Término Real", lista_horas, index=lista_horas.index(d['hora_saida']) if d['hora_saida'] in lista_horas else 0)
+                        
+                        rel_det = st.text_area("Relatório Resumido da Missão", d.get('relatorio_resumido', ''))
+                        conf_c = st.checkbox("Missão Cumprida Totalmente", value=bool(d.get('cumprido')))
+                        
+                        if st.form_submit_button("Salvar Dados"):
+                            try:
+                                supabase.table("escala_operacional").update({
+                                    "comandante_nome": n_cmt, "comandante_matricula": m_cmt, "viatura": v_pref,
+                                    "hora_entrada": h_e_real, "hora_saida": h_s_real, "relatorio_resumido": rel_det,
+                                    "cumprido": conf_c, "ultima_edicao": datetime.datetime.now().isoformat(),
+                                    "editado_por": user_email
+                                }).eq("id", d['id']).execute()
+                                st.success("Salvo com sucesso!")
+                                st.rerun()
+                            except Exception as e: st.error(f"Erro ao salvar: {e}")
 
         elif titulo == "📊 Estatísticas":
             df_e = carregar_dados_db()
