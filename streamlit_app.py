@@ -48,7 +48,7 @@ if "temp_logout" in st.session_state:
 
 # --- 2. CABEÇALHO ---
 
-col_logo1, col_logo2, col_logo3 = st.columns([2.5, 1.0, 2.5]) 
+col_logo1, col_logo2, col_logo3 = st.columns([2.0, 1.0, 2.0]) 
 with col_logo2: 
     try: 
         st.image("brasoes_cpr_especializadas.png", use_container_width=True)      
