@@ -51,7 +51,7 @@ if "temp_logout" in st.session_state:
 st.markdown("""
     <style>
         .block-container {
-            padding-top: 1rem;
+            padding-top: 2.5rem;
         }
     </style>
 """, unsafe_allow_html=True)
