@@ -66,7 +66,7 @@ with col_logo2:
 
 # 3. Títulos Centralizados com Espaçamento Reduzido
 st.markdown("""
-    <div style="text-align: center; font-weight: bold; font-size: 120%; line-height: 1.1; margin-top: 10px;">
+    <div style="text-align: center; font-weight: bold; font-size: 120%; line-height: 1.1; margin-top: 10px; margin-bottom: 30px;">
         CPR-ES<br>
         🛡️ SISPOSIÇÃO<br>
         <span style="font-size: 85%; font-weight: normal;">Sistema de Policiamento Sem Sobreposição</span>
@@ -74,7 +74,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 3. LÓGICA DE AUTENTICAÇÃO ---
-
 if "user_session" not in st.session_state:
     st.session_state.user_session = None
 
