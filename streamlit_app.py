@@ -279,21 +279,25 @@ for i, titulo in enumerate(titulos_finais):
             with col_g1:
                 st.subheader("📝 Agendar Missão")
                 
-                # A data é movida para fora do formulário para ser reativa
-                dt_g = st.date_input("Data da Missão")
+                # A data inicia em branco (value=None)
+                dt_g = st.date_input("Data da Missão", value=None)
                 
                 df_atual = carregar_dados_db()
-                if not df_atual.empty:
+                # Só busca e mostra as missões já agendadas se uma data for escolhida
+                if dt_g is not None and not df_atual.empty:
                     df_dia = df_atual[df_atual['data'] == str(dt_g)]
                     if not df_dia.empty:
                         st.info("📌 Missões já agendadas para esta data:")
-                        # Exibe as colunas incluindo o município
                         colunas_prev = ['data', 'unidade', 'municipio', 'hora_entrada', 'hora_saida']
                         st.dataframe(df_dia[[c for c in colunas_prev if c in df_dia.columns]], use_container_width=True, hide_index=True)
 
                 with st.form("f_gest_nova", clear_on_submit=True):
-                    mu_g = st.selectbox("Município", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
-                    un_g = st.selectbox("Unidade Responsável", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
+                    # Adiciona opções em branco no topo das listas
+                    lista_mun = [""] + sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"])
+                    lista_un = ["", "Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"]
+                    
+                    mu_g = st.selectbox("Município", lista_mun, index=0)
+                    un_g = st.selectbox("Unidade Responsável", lista_un, index=0)
                     
                     c_f1, c_f2 = st.columns(2)
                     cmt_g = c_f1.text_input("Comandante da Guarnição")
@@ -304,43 +308,45 @@ for i, titulo in enumerate(titulos_finais):
                     miss_obj = st.text_area("Objetivo da Missão")
                     
                     if st.form_submit_button("Agendar Missão"):
-                        sobreposicao_detectada = False
-                        
-                        # Define as unidades que entram na regra restrita de sobreposição
-                        unidades_com_sobreposicao = ["CIPE-MA", "CIPT-ES"]
-                        
-                        if not df_atual.empty and (un_g in unidades_com_sobreposicao):
-                            # Filtra apenas se for no mesmo município
-                            df_conflito = df_atual[(df_atual['data'] == str(dt_g)) & (df_atual['municipio'] == mu_g)]
-                            if not df_conflito.empty:
-                                inicio_novo = int(h_e_prev.split(":")[0])
-                                fim_novo = int(h_s_prev.split(":")[0])
-                                if fim_novo <= inicio_novo: fim_novo += 24 
-                                
-                                for _, row in df_conflito.iterrows():
-                                    try:
-                                        inicio_existente = int(str(row['hora_entrada']).split(":")[0])
-                                        fim_existente = int(str(row['hora_saida']).split(":")[0])
-                                        if fim_existente <= inicio_existente: fim_existente += 24
-                                        
-                                        if (inicio_novo < fim_existente) and (fim_novo > inicio_existente):
-                                            sobreposicao_detectada = True
-                                            break
-                                    except: pass
-                                    
-                        if sobreposicao_detectada:
-                            st.error("⚠️ REGRA DE SOBREPOSIÇÃO: Já existe uma missão cadastrada que conflita com este mesmo município e horário.")
+                        # Trava de segurança: impede agendamento se faltarem dados essenciais
+                        if dt_g is None or mu_g == "" or un_g == "":
+                            st.warning("⚠️ Atenção: Preencha a Data, o Município e a Unidade para agendar.")
                         else:
-                            try:
-                                supabase.table("escala_operacional").insert({
-                                    "data": str(dt_g), "municipio": mu_g, "unidade": un_g,
-                                    "comandante_nome": cmt_g, "viatura": vtr_g,
-                                    "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj,
-                                    "criado_por": user_email
-                                }).execute()
-                                st.success("Missão agendada com sucesso!")
-                                st.rerun()
-                            except Exception as e: st.error(f"Falha no agendamento: {e}")
+                            sobreposicao_detectada = False
+                            
+                            unidades_com_sobreposicao = ["CIPE-MA", "CIPT-ES"]
+                            
+                            if not df_atual.empty and (un_g in unidades_com_sobreposicao):
+                                df_conflito = df_atual[(df_atual['data'] == str(dt_g)) & (df_atual['municipio'] == mu_g)]
+                                if not df_conflito.empty:
+                                    inicio_novo = int(h_e_prev.split(":")[0])
+                                    fim_novo = int(h_s_prev.split(":")[0])
+                                    if fim_novo <= inicio_novo: fim_novo += 24 
+                                    
+                                    for _, row in df_conflito.iterrows():
+                                        try:
+                                            inicio_existente = int(str(row['hora_entrada']).split(":")[0])
+                                            fim_existente = int(str(row['hora_saida']).split(":")[0])
+                                            if fim_existente <= inicio_existente: fim_existente += 24
+                                            
+                                            if (inicio_novo < fim_existente) and (fim_novo > inicio_existente):
+                                                sobreposicao_detectada = True
+                                                break
+                                        except: pass
+                                        
+                            if sobreposicao_detectada:
+                                st.error("⚠️ REGRA DE SOBREPOSIÇÃO: Já existe uma missão cadastrada que conflita com este mesmo município e horário.")
+                            else:
+                                try:
+                                    supabase.table("escala_operacional").insert({
+                                        "data": str(dt_g), "municipio": mu_g, "unidade": un_g,
+                                        "comandante_nome": cmt_g, "viatura": vtr_g,
+                                        "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj,
+                                        "criado_por": user_email
+                                    }).execute()
+                                    st.success("Missão agendada com sucesso!")
+                                    st.rerun()
+                                except Exception as e: st.error(f"Falha no agendamento: {e}")
 
             with col_g2:
                 st.subheader("🗑️ Excluir Registro")
