@@ -60,7 +60,7 @@ st.markdown("""
 col_logo1, col_logo2, col_logo3 = st.columns([2.5, 1.0, 2.5])
 with col_logo2:
     try: 
-        st.image("LogosCircular.png", use_container_width=True)
+        st.image("brasoes_cpr_especializadas.png", use_container_width=True)
     except: 
         pass
 
