@@ -45,24 +45,33 @@ if "temp_logout" in st.session_state:
     supabase.auth.sign_out()
     del st.session_state["temp_logout"]
 
-
 # --- 2. CABEÇALHO ---
 
-col_logo1, col_logo2, col_logo3 = st.columns([1.5, 1.0, 1.5]) 
-with col_logo2: 
+# 1. Injeta CSS para remover o espaço vazio do topo da página
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 1rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# 2. Renderiza a Logo Centralizada e Menor
+col_logo1, col_logo2, col_logo3 = st.columns([2.5, 1.0, 2.5])
+with col_logo2:
     try: 
-        st.image("brasoes_cpr_especializadas.png", use_container_width=True)      
+        st.image("LogosCircular.png", use_container_width=True)
     except: 
         pass
 
+# 3. Títulos Centralizados com Espaçamento Reduzido
 st.markdown("""
-    <div style="text-align: center; font-weight: bold; font-size: 180%;">
-        CPR-ES<br><br>
+    <div style="text-align: center; font-weight: bold; font-size: 120%; line-height: 1.1; margin-top: 10px;">
+        CPR-ES<br>
         🛡️ SISPOSIÇÃO<br>
-        Sistema de Policiamento Sem Sobreposição
+        <span style="font-size: 85%; font-weight: normal;">Sistema de Policiamento Sem Sobreposição</span>
     </div>
 """, unsafe_allow_html=True)
-
 
 # --- 3. LÓGICA DE AUTENTICAÇÃO ---
 
