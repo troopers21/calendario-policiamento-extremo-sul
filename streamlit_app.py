@@ -56,7 +56,7 @@ with col_logo2:
         pass
 
 st.markdown("""
-    <div style="text-align: center; font-weight: bold; font-size: 120%;">
+    <div style="text-align: center; font-weight: bold; font-size: 180%;">
         CPR-ES<br><br>
         🛡️ SISPOSIÇÃO<br>
         Sistema de Policiamento Sem Sobreposição
