@@ -45,23 +45,38 @@ if "temp_logout" in st.session_state:
     supabase.auth.sign_out()
     del st.session_state["temp_logout"]
 
+
 # --- 2. CABEÇALHO ---
+
 col_logo1, col_logo2, col_logo3 = st.columns([2.5, 1.0, 2.5]) 
 with col_logo2: 
-    try: st.image("LogosCircular.png", use_container_width=True)      
-    except: pass
-        
-    
+    try: 
+        st.image("LogosCircular.png", use_container_width=True)      
+    except: 
+        pass
+
+st.markdown("""
+    <div style="text-align: center; font-weight: bold; font-size: 120%;">
+        CPR-ES<br><br>
+        🛡️ SISPOSIÇÃO<br>
+        Sistema de Policiamento Sem Sobreposição
+    </div>
+""", unsafe_allow_html=True)
+
+
 # --- 3. LÓGICA DE AUTENTICAÇÃO ---
+
 if "user_session" not in st.session_state:
     st.session_state.user_session = None
 
+# Tenta carregar a sessão ativa da memória primeiro
 try:
     session_res = supabase.auth.get_session()
     if session_res and session_res.session:
         st.session_state.user_session = session_res.user
 except: pass
 
+# Se a memória estiver vazia (F5), puxamos dos cookies já sincronizados
 if st.session_state.user_session is None:
     access_token = cookie_manager.get(cookie="sb_access_token")
     refresh_token = cookie_manager.get(cookie="sb_refresh_token")
@@ -73,18 +88,12 @@ if st.session_state.user_session is None:
         except: pass
 
 # TELA DE LOGIN / CADASTRO
-
-if st.session_state.user_session is None: 
+if st.session_state.user_session is None:
+    aba_auth = st.tabs(["🔐 Entrar", "📝 Cadastrar-se"])
     
-    # --- NOVO TEXTO FORMATADO AQUI ---
-    st.markdown('<div style="text-align: center; font-weight: bold; font-size: 120%;">🛡️ SISPOSIÇÃO Sistema de Policiamento Sem Sobreposição — CPR-ES</div>', unsafe_allow_html=True)
-    st.write("") # Adiciona uma linha em branco para dar um respiro antes do login
-    
-    aba_auth = st.tabs(["🔐 Entrar", "📝 Cadastrar-se"]) 
-    with aba_auth[0]: 
-        with st.form("login_form"): 
+    with aba_auth[0]:
+        with st.form("login_form"):
             email_in = st.text_input("Email")
-            # ... o restante do seu código continua normal
             senha_in = st.text_input("Senha", type="password")
             if st.form_submit_button("Acessar Sistema", use_container_width=True):
                 try:
@@ -97,8 +106,7 @@ if st.session_state.user_session is None:
                             st.session_state.temp_access_token = res.session.access_token
                             st.session_state.temp_refresh_token = res.session.refresh_token
                             st.rerun()
-                except Exception as e:
-                    st.error(f"Erro no login: {e}")
+                except Exception as e: st.error(f"Erro no login: {e}")
 
     with aba_auth[1]:
         with st.form("register_form"):
@@ -111,19 +119,23 @@ if st.session_state.user_session is None:
             mat_reg = c_r2.text_input("Matrícula")
             st.divider()
             e_reg, p_reg = st.text_input("E-mail"), st.text_input("Senha", type="password")
+            
             if st.form_submit_button("Finalizar Cadastro"):
                 try:
                     if posto_grad in ["Subten PM", "Sgt PM", "Cb PM", "Sd PM"]:
                         perms_iniciais = ["✅ Cumprimento"]
                     else:
                         perms_iniciais = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas"]
+                    
                     supabase.auth.sign_up({"email": e_reg, "password": p_reg, "options": {"data": {"posto_grad": posto_grad, "nome_completo": nome_reg, "matricula": mat_reg, "unidade": unidade_reg}}})
                     supabase.table("permissoes_usuarios").upsert({"matricula": mat_reg, "abas_permitidas": perms_iniciais}).execute()
                     st.success("✅ Cadastro solicitado! Verifique seu e-mail.")
                 except Exception as e: st.error(f"Erro: {e}")
     st.stop()
 
+
 # --- 4. VARIÁVEIS DO USUÁRIO ---
+
 user_email = st.session_state.user_session.email
 user_meta = st.session_state.user_session.user_metadata
 p_g_user = user_meta.get("posto_grad", "")
@@ -161,7 +173,9 @@ territorios = {
     "Costa das Baleias": ["Teixeira de Freitas", "Itamaraju", "Jucuruçu", "Medeiros Neto", "Itanhém", "Lajedão", "Vereda", "Ibirapuã", "Alcobaça", "Prado", "Caravelas", "Mucuri", "Nova Viçosa"]
 }
 
+
 # --- 5. INTERFACE SIDEBAR ---
+
 with st.sidebar:
     st.markdown(f"### 👮 {p_g_user} {nome_user}\n{unidade_user} | {mat_user}")
     if st.button("Sair"):
@@ -169,16 +183,21 @@ with st.sidebar:
         st.session_state.user_session = None
         st.rerun()
 
+
 # --- 6. ABAS ---
+
 abas_possiveis = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprimento", "📊 Estatísticas", "⚙️ Gestão", "🏠 Gestão Base Integrada"]
 if eh_admin: abas_possiveis.append("🔑 Admin")
 
 titulos_finais = [a for a in abas_possiveis if a in abas_liberadas]
 if not titulos_finais: titulos_finais = ["✅ Cumprimento"]
+
 tabs = st.tabs(titulos_finais)
 
 for i, titulo in enumerate(titulos_finais):
+    
     with tabs[i]:
+        
         if titulo == "📋 Consulta de Escala":
             dt_c = st.date_input("Data da Escala:", datetime.date.today(), key="dt_cons")
             df = carregar_dados_db()
@@ -189,9 +208,8 @@ for i, titulo in enumerate(titulos_finais):
                         st.markdown(f"#### 📍 {r}")
                         df_r['Estado'] = df_r['cumprido'].map({True: "✅ OK", False: "⚠️ Aberto"})
                         st.dataframe(df_r[['municipio', 'unidade', 'hora_entrada', 'hora_saida', 'Estado']], use_container_width=True, hide_index=True)
-
+                        
         elif titulo == "🎖️ Comandante":
-            # --- SEÇÃO CONGELADA ---
             df_all = carregar_dados_db().sort_values(by="data", ascending=False)
             if not df_all.empty:
                 for r, cidades in territorios.items():
@@ -199,13 +217,15 @@ for i, titulo in enumerate(titulos_finais):
                     if not df_r.empty:
                         with st.expander(f"📍 {r}"):
                             df_r['Situação'] = df_r['cumprido'].map({True: "✅ OK", False: "⚠️ Aberto"})
-                            # COLUNA 'viatura' ADICIONADA AQUI ENTRE UNIDADE E HORA DE ENTRADA
-                            st.dataframe(df_r[['data', 'municipio', 'unidade', 'viatura', 'hora_entrada', 'hora_saida', 'Situação', 'missao']], use_container_width=True, hide_index=True)
-
+                            # Assegura que a coluna viatura exista e seja mostrada
+                            colunas_para_exibir = ['data', 'municipio', 'unidade', 'viatura', 'hora_entrada', 'hora_saida', 'Situação', 'missao']
+                            colunas_finais = [col for col in colunas_para_exibir if col in df_r.columns]
+                            st.dataframe(df_r[colunas_finais], use_container_width=True, hide_index=True)
+                            
         elif titulo == "✅ Cumprimento":
             df_c = carregar_dados_db().sort_values(by="data", ascending=False)
             if not df_c.empty:
-                df_c['sel'] = df_c['data'] + " | " + df_c['municipio']
+                df_c['sel'] = df_c['data'] + " | " + df_c['municipio'] + " | " + df_c['unidade']
                 it = st.selectbox("Selecione a Missão:", df_c['sel'].tolist(), key="sel_cump")
                 d = df_c[df_c['sel'] == it].iloc[0]
                 with st.form("f_cump_completo"):
@@ -239,8 +259,11 @@ for i, titulo in enumerate(titulos_finais):
 
         elif titulo == "⚙️ Gestão":
             col_g1, col_g2 = st.columns(2)
+            
             with col_g1:
                 st.subheader("📝 Agendar Missão")
+                
+                # A data é movida para fora do formulário para ser reativa
                 dt_g = st.date_input("Data da Missão")
                 
                 df_atual = carregar_dados_db()
@@ -248,33 +271,37 @@ for i, titulo in enumerate(titulos_finais):
                     df_dia = df_atual[df_atual['data'] == str(dt_g)]
                     if not df_dia.empty:
                         st.info("📌 Missões já agendadas para esta data:")
-                        st.dataframe(df_dia[['data', 'unidade', 'municipio', 'hora_entrada', 'hora_saida']], use_container_width=True, hide_index=True)
+                        # Exibe as colunas incluindo o município
+                        colunas_prev = ['data', 'unidade', 'municipio', 'hora_entrada', 'hora_saida']
+                        st.dataframe(df_dia[[c for c in colunas_prev if c in df_dia.columns]], use_container_width=True, hide_index=True)
 
                 with st.form("f_gest_nova", clear_on_submit=True):
                     mu_g = st.selectbox("Município", sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"]))
                     un_g = st.selectbox("Unidade Responsável", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
                     
-                    # Criei estas colunas novamente para você não perder a capacidade de inserir a Viatura!
-                    c_form1, c_form2 = st.columns(2)
-                    cmt_g = c_form1.text_input("Comandante da Guarnição")
-                    vtr_g = c_form2.text_input("Prefixo da Viatura")
-
+                    c_f1, c_f2 = st.columns(2)
+                    cmt_g = c_f1.text_input("Comandante da Guarnição")
+                    vtr_g = c_f2.text_input("Prefixo da Viatura")
+                    
                     h_e_prev = st.selectbox("Início Previsto", lista_horas)
                     h_s_prev = st.selectbox("Fim Previsto", lista_horas)
                     miss_obj = st.text_area("Objetivo da Missão")
                     
                     if st.form_submit_button("Agendar Missão"):
                         sobreposicao_detectada = False
+                        
+                        # Define as unidades que entram na regra restrita de sobreposição
                         unidades_com_sobreposicao = ["CIPE-MA", "CIPT-ES"]
                         
                         if not df_atual.empty and (un_g in unidades_com_sobreposicao):
-                            df_dia_conflito = df_atual[(df_atual['data'] == str(dt_g)) & (df_atual['municipio'] == mu_g) & (df_atual['unidade'].isin(unidades_com_sobreposicao))]
-                            if not df_dia_conflito.empty:
+                            # Filtra apenas se for no mesmo município
+                            df_conflito = df_atual[(df_atual['data'] == str(dt_g)) & (df_atual['municipio'] == mu_g)]
+                            if not df_conflito.empty:
                                 inicio_novo = int(h_e_prev.split(":")[0])
                                 fim_novo = int(h_s_prev.split(":")[0])
-                                if fim_novo <= inicio_novo: fim_novo += 24
+                                if fim_novo <= inicio_novo: fim_novo += 24 
                                 
-                                for _, row in df_dia_conflito.iterrows():
+                                for _, row in df_conflito.iterrows():
                                     try:
                                         inicio_existente = int(str(row['hora_entrada']).split(":")[0])
                                         fim_existente = int(str(row['hora_saida']).split(":")[0])
@@ -283,11 +310,10 @@ for i, titulo in enumerate(titulos_finais):
                                         if (inicio_novo < fim_existente) and (fim_novo > inicio_existente):
                                             sobreposicao_detectada = True
                                             break
-                                    except:
-                                        pass
-
+                                    except: pass
+                                    
                         if sobreposicao_detectada:
-                            st.error("⚠️ REGRA DE SOBREPOSIÇÃO: Já existe uma missão cadastrada que conflita com este mesmo dia, município e horário. Por favor, escolha outro.")
+                            st.error("⚠️ REGRA DE SOBREPOSIÇÃO: Já existe uma missão cadastrada que conflita com este mesmo município e horário.")
                         else:
                             try:
                                 supabase.table("escala_operacional").insert({
@@ -304,8 +330,11 @@ for i, titulo in enumerate(titulos_finais):
                 st.subheader("🗑️ Excluir Registro")
                 df_del = carregar_dados_db().sort_values(by='data', ascending=False)
                 if not df_del.empty:
+                    # Inclui a unidade na formatação
                     df_del['txt'] = df_del['data'] + " | " + df_del['municipio'] + " | " + df_del['unidade']
+                    # Adiciona a string em branco na posição 0
                     opcoes_exclusao = [""] + df_del['txt'].tolist()
+                    
                     it_del = st.selectbox("Selecione para excluir:", opcoes_exclusao, index=0, key="del_escala")
                     
                     if it_del != "":
@@ -316,23 +345,28 @@ for i, titulo in enumerate(titulos_finais):
                         * Objetivo: {reg_selecionado.get('missao', 'Não preenchido')}
                         * Status: {'✅ Cumprida' if reg_selecionado.get('cumprido') else '⚠️ Aberta'}
                         """)
+                        
                         if st.button("Remover Permanentemente"):
                             try:
-                                id_d = df_del[df_del['txt'] == it_del]['id'].values[0]
+                                id_d = reg_selecionado['id']
                                 supabase.table("escala_operacional").delete().eq("id", id_d).execute()
                                 st.rerun()
                             except Exception as e: st.error(f"Erro ao excluir: {e}")
 
         elif titulo == "🏠 Gestão Base Integrada":
             st.header("🏠 Gestão Base Integrada")
+            
             col_b1, col_b2 = st.columns([1, 2])
+            
             with col_b1:
                 st.subheader("📝 Agendar Base")
+                
+                # Elemento interativo fora do form
                 dt_base = st.date_input("Selecione um dia da semana desejada")
                 segunda_f = dt_base - datetime.timedelta(days=dt_base.weekday())
                 domingo_f = segunda_f + datetime.timedelta(days=6)
                 
-                st.info(f"📅 Período: {segunda_f.strftime('%d/%m/%Y')} a {domingo_f.strftime('%d/%m/%Y')}")
+                st.info(f"📆 Período: {segunda_f.strftime('%d/%m/%Y')} a {domingo_f.strftime('%d/%m/%Y')}")
                 
                 with st.form("form_base", clear_on_submit=True):
                     base_escolhida = st.selectbox("Selecione a Base", ["Base 1", "Base 2", "Base 3", "Base 4"])
@@ -352,25 +386,26 @@ for i, titulo in enumerate(titulos_finais):
                         else:
                             try:
                                 supabase.table("bases_integradas").insert({
-                                    "base_nome": base_escolhida, "unidade": unidade_base,
-                                    "data_inicio": str(segunda_f), "data_fim": str(domingo_f),
+                                    "base_nome": base_escolhida,
+                                    "unidade": unidade_base,
+                                    "data_inicio": str(segunda_f),
+                                    "data_fim": str(domingo_f),
                                     "criado_por": user_email
                                 }).execute()
                                 st.success("Base agendada com sucesso!")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Erro ao agendar: {e}")
-                                
-                st.divider()
-                st.markdown("#### 🗂️ Histórico Geral de Ocupações")
-                df_historico_bases = carregar_dados_bases()
-                if not df_historico_bases.empty:
-                    df_historico_bases = df_historico_bases[['base_nome', 'unidade', 'data_inicio', 'data_fim']]
-                    df_historico_bases.columns = ['Base', 'Unidade Ocupante', 'Início', 'Fim']
-                    df_historico_bases = df_historico_bases.sort_values(by=["Início", "Base"], ascending=[False, True])
-                    st.dataframe(df_historico_bases, use_container_width=True, hide_index=True)
-                else:
-                    st.info("Nenhum histórico de ocupação encontrado.")
+
+                # Histórico Geral logo abaixo
+                df_bases = carregar_dados_bases()
+                if not df_bases.empty:
+                    st.write("---")
+                    st.markdown("**📌 Histórico de Bases Cadastradas**")
+                    df_historico = df_bases[['base_nome', 'unidade', 'data_inicio', 'data_fim']].copy()
+                    df_historico.columns = ['Base', 'Unidade Ocupante', 'Início', 'Fim']
+                    df_historico = df_historico.sort_values(by="Início", ascending=False)
+                    st.dataframe(df_historico, use_container_width=True, hide_index=True)
 
             with col_b2:
                 st.subheader("📅 Previsão de Ocupação")
@@ -378,11 +413,12 @@ for i, titulo in enumerate(titulos_finais):
                 segunda_filtro = dt_filtro - datetime.timedelta(days=dt_filtro.weekday())
                 domingo_filtro = segunda_filtro + datetime.timedelta(days=6)
                 
-                st.write(f"📌 Semana de: **{segunda_filtro.strftime('%d/%m/%Y')}** até **{domingo_filtro.strftime('%d/%m/%Y')}**")
+                st.write(f"📆 Semana de: **{segunda_filtro.strftime('%d/%m/%Y')}** até **{domingo_filtro.strftime('%d/%m/%Y')}**")
                 
-                df_bases_prev = carregar_dados_bases()
-                if not df_bases_prev.empty:
-                    df_semana = df_bases_prev[df_bases_prev['data_inicio'] == str(segunda_filtro)]
+                df_bases = carregar_dados_bases()
+                if not df_bases.empty:
+                    df_semana = df_bases[df_bases['data_inicio'] == str(segunda_filtro)]
+                    
                     if not df_semana.empty:
                         df_semana = df_semana[['base_nome', 'unidade', 'data_inicio', 'data_fim']]
                         df_semana.columns = ['Base', 'Unidade Ocupante', 'Início', 'Fim']
