@@ -119,11 +119,12 @@ if st.session_state.user_session is None:
     with aba_auth[1]:
         with st.form("register_form"):
             lista_p = ["Cel PM", "Ten Cel PM", "Maj PM", "Cap PM", "Ten PM", "Asp PM", "Subten PM", "Sgt PM", "Cb PM", "Sd PM"]
-            lista_u = ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"]
+            # Adicionado CPR-ES aqui para permitir o cadastro de pessoal do Comando
+            lista_u = ["CPR-ES", "Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"]            
             c_r1, c_r2 = st.columns(2)
             posto_grad = c_r1.selectbox("Posto/Graduação", lista_p)
             nome_reg = c_r1.text_input("Nome Completo")
-            unidade_reg = c_r2.selectbox("Unidade", lista_u)
+            unidade_reg = c_r2.selectbox("Unidade", lista_u)    
             mat_reg = c_r2.text_input("Matrícula")
             st.divider()
             e_reg, p_reg = st.text_input("E-mail"), st.text_input("Senha", type="password")
@@ -292,13 +293,14 @@ for i, titulo in enumerate(titulos_finais):
                         st.dataframe(df_dia[[c for c in colunas_prev if c in df_dia.columns]], use_container_width=True, hide_index=True)
 
                 with st.form("f_gest_nova", clear_on_submit=True):
-                    # Adiciona opções em branco no topo das listas
+                    # Lista sem CPR-ES e com opção em branco para segurança
                     lista_mun = [""] + sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"])
                     lista_un = ["", "Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"]
                     
                     mu_g = st.selectbox("Município", lista_mun, index=0)
                     un_g = st.selectbox("Unidade Responsável", lista_un, index=0)
-                    
+                    # ... restante do formulário igual
+                                                   
                     c_f1, c_f2 = st.columns(2)
                     cmt_g = c_f1.text_input("Comandante da Guarnição")
                     vtr_g = c_f2.text_input("Prefixo da Viatura")
