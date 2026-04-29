@@ -74,6 +74,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 3. LÓGICA DE AUTENTICAÇÃO ---
+
 if "user_session" not in st.session_state:
     st.session_state.user_session = None
 
@@ -119,12 +120,12 @@ if st.session_state.user_session is None:
     with aba_auth[1]:
         with st.form("register_form"):
             lista_p = ["Cel PM", "Ten Cel PM", "Maj PM", "Cap PM", "Ten PM", "Asp PM", "Subten PM", "Sgt PM", "Cb PM", "Sd PM"]
-            # Adicionado CPR-ES aqui para permitir o cadastro de pessoal do Comando
-            lista_u = ["CPR-ES", "Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"]            
+            # Lista incluindo o CPR-ES para cadastro de usuários
+            lista_u = ["CPR-ES", "Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"]
             c_r1, c_r2 = st.columns(2)
             posto_grad = c_r1.selectbox("Posto/Graduação", lista_p)
             nome_reg = c_r1.text_input("Nome Completo")
-            unidade_reg = c_r2.selectbox("Unidade", lista_u)    
+            unidade_reg = c_r2.selectbox("Unidade", lista_u)
             mat_reg = c_r2.text_input("Matrícula")
             st.divider()
             e_reg, p_reg = st.text_input("E-mail"), st.text_input("Senha", type="password")
@@ -264,7 +265,7 @@ for i, titulo in enumerate(titulos_finais):
                                     "comandante_nome": n_cmt, "comandante_matricula": m_cmt, "viatura": v_pref,
                                     "hora_entrada": h_e_real, "hora_saida": h_s_real, "relatorio_resumido": rel_det,
                                     "cumprido": conf_c, "ultima_edicao": datetime.datetime.now().isoformat(),
-                                    "editado_por": user_email
+                                    "editado_por": f"{p_g_user} {nome_user}"
                                 }).eq("id", d['id']).execute()
                                 st.success("Salvo com sucesso!")
                                 st.rerun()
@@ -293,14 +294,13 @@ for i, titulo in enumerate(titulos_finais):
                         st.dataframe(df_dia[[c for c in colunas_prev if c in df_dia.columns]], use_container_width=True, hide_index=True)
 
                 with st.form("f_gest_nova", clear_on_submit=True):
-                    # Lista sem CPR-ES e com opção em branco para segurança
+                    # Adiciona opções em branco no topo das listas (sem CPR-ES)
                     lista_mun = [""] + sorted(territorios["Costa do Descobrimento"] + territorios["Costa das Baleias"])
                     lista_un = ["", "Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"]
                     
                     mu_g = st.selectbox("Município", lista_mun, index=0)
                     un_g = st.selectbox("Unidade Responsável", lista_un, index=0)
-                    # ... restante do formulário igual
-                                                   
+                    
                     c_f1, c_f2 = st.columns(2)
                     cmt_g = c_f1.text_input("Comandante da Guarnição")
                     vtr_g = c_f2.text_input("Prefixo da Viatura")
@@ -316,9 +316,11 @@ for i, titulo in enumerate(titulos_finais):
                         else:
                             sobreposicao_detectada = False
                             
+                            # Define as unidades que entram na regra restrita de sobreposição
                             unidades_com_sobreposicao = ["CIPE-MA", "CIPT-ES"]
                             
                             if not df_atual.empty and (un_g in unidades_com_sobreposicao):
+                                # Filtra apenas se for no mesmo município
                                 df_conflito = df_atual[(df_atual['data'] == str(dt_g)) & (df_atual['municipio'] == mu_g)]
                                 if not df_conflito.empty:
                                     inicio_novo = int(h_e_prev.split(":")[0])
@@ -344,7 +346,7 @@ for i, titulo in enumerate(titulos_finais):
                                         "data": str(dt_g), "municipio": mu_g, "unidade": un_g,
                                         "comandante_nome": cmt_g, "viatura": vtr_g,
                                         "hora_entrada": h_e_prev, "hora_saida": h_s_prev, "missao": miss_obj,
-                                        "criado_por": user_email
+                                        "criado_por": f"{p_g_user} {nome_user}" # Alterado para gravar o GH + Nome
                                     }).execute()
                                     st.success("Missão agendada com sucesso!")
                                     st.rerun()
@@ -364,10 +366,11 @@ for i, titulo in enumerate(titulos_finais):
                     if it_del != "":
                         reg_selecionado = df_del[df_del['txt'] == it_del].iloc[0]
                         st.info(f"""
-                        Detalhes da Missão:
-                        * Horário Previsto: {reg_selecionado['hora_entrada']} às {reg_selecionado['hora_saida']}
-                        * Objetivo: {reg_selecionado.get('missao', 'Não preenchido')}
-                        * Status: {'✅ Cumprida' if reg_selecionado.get('cumprido') else '⚠️ Aberta'}
+**Detalhes da Missão:**
+* **Horário:** {reg_selecionado['hora_entrada']} às {reg_selecionado['hora_saida']}
+* **Objetivo:** {reg_selecionado.get('missao', 'Não preenchido')}
+* **Status:** {'✅ Cumprida' if reg_selecionado.get('cumprido') else '⚠️ Aberta'}
+* **Cadastrado Por:** {reg_selecionado.get('criado_por', 'Não identificado')}
                         """)
                         
                         if st.button("Remover Permanentemente"):
@@ -414,7 +417,7 @@ for i, titulo in enumerate(titulos_finais):
                                     "unidade": unidade_base,
                                     "data_inicio": str(segunda_f),
                                     "data_fim": str(domingo_f),
-                                    "criado_por": user_email
+                                    "criado_por": f"{p_g_user} {nome_user}"
                                 }).execute()
                                 st.success("Base agendada com sucesso!")
                                 st.rerun()
