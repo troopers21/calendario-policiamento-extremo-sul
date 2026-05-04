@@ -464,6 +464,39 @@ for i, titulo in enumerate(titulos_finais):
                         st.warning("Nenhuma base está ocupada para esta semana.")
                 else:
                     st.warning("Nenhuma base está ocupada para esta semana.")
+                    
+                # --- NOVO BLOCO: EXCLUSÃO DE BASE INTEGRADA ---
+                st.write("---")
+                st.subheader("🗑️ Excluir Registro de Base")
+                df_del_base = carregar_dados_bases()
+                
+                if not df_del_base.empty:
+                    df_del_base = df_del_base.sort_values(by='data_inicio', ascending=False)
+                    
+                    # Formata a string para a caixa de seleção para facilitar a identificação
+                    df_del_base['txt'] = df_del_base['data_inicio'] + " a " + df_del_base['data_fim'] + " | " + df_del_base['base_nome'] + " | " + df_del_base['unidade']
+                    opcoes_exclusao_base = [""] + df_del_base['txt'].tolist()
+                    
+                    it_del_base = st.selectbox("Selecione o agendamento para excluir:", opcoes_exclusao_base, index=0, key="del_base_sel")
+                    
+                    if it_del_base != "":
+                        reg_selecionado_base = df_del_base[df_del_base['txt'] == it_del_base].iloc[0]
+                        st.warning(f"""
+**Confirma a exclusão deste agendamento?**
+* **Base:** {reg_selecionado_base['base_nome']}
+* **Unidade:** {reg_selecionado_base['unidade']}
+* **Período:** {reg_selecionado_base['data_inicio']} até {reg_selecionado_base['data_fim']}
+* **Cadastrado Por:** {reg_selecionado_base.get('criado_por', 'Não identificado')}
+                        """)
+                        
+                        if st.button("Remover Agendamento Permanentemente", type="primary", key="btn_remover_base"):
+                            try:
+                                id_b = reg_selecionado_base['id']
+                                supabase.table("bases_integradas").delete().eq("id", int(id_b)).execute()
+                                st.success("Registro de base excluído com sucesso!")
+                                st.rerun()
+                            except Exception as e: 
+                                st.error(f"Erro ao excluir o registro da base: {e}")
 
         elif titulo == "🔑 Admin" and eh_admin:
             st.subheader("Gestão de Acessos")
