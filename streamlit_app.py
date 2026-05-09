@@ -390,61 +390,66 @@ for i, titulo in enumerate(titulos_finais):
                             except Exception as e: st.error(f"Erro ao excluir: {e}")
 
         elif titulo == "🏠 Gestão Base Integrada":
-            st.header("🏠 Gestão Base Integrada")
+    st.header("🏠 Gestão Base Integrada")
+    col_b1, col_b2 = st.columns([1, 2])
+    
+    with col_b1:
+        st.subheader("📝 Agendar Base")
+        dt_base = st.date_input("Selecione um dia da semana desejada")
+        
+        # Cálculo da semana (Segunda a Domingo)
+        segunda_f = dt_base - datetime.timedelta(days=dt_base.weekday())
+        domingo_f = segunda_f + datetime.timedelta(days=6)
+        
+        # Exibição do período no formato BR no topo do formulário
+        st.info(f"📆 Período Selecionado: {segunda_f.strftime('%d/%m/%Y')} a {domingo_f.strftime('%d/%m/%Y')}")
+        
+        with st.form("form_base", clear_on_submit=True):
+            # 1. SUBSTITUIÇÃO DOS NOMES DAS BASES
+            base_escolhida = st.selectbox("Selecione a Base", ["Barrolandia", "Corumbau", "Itaporanga", "Itanhém"])
+            unidade_base = st.selectbox("Unidade Responsável", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
             
-            col_b1, col_b2 = st.columns([1, 2])
+            submit_base = st.form_submit_button("Confirmar Ocupação")
             
-            with col_b1:
-                st.subheader("📝 Agendar Base")
-                
-                # Elemento interativo fora do form
-                dt_base = st.date_input("Selecione um dia da semana desejada")
-                segunda_f = dt_base - datetime.timedelta(days=dt_base.weekday())
-                domingo_f = segunda_f + datetime.timedelta(days=6)
-                
-                st.info(f"📆 Período: {segunda_f.strftime('%d/%m/%Y')} a {domingo_f.strftime('%d/%m/%Y')}")
-                
-                with st.form("form_base", clear_on_submit=True):
-                    base_escolhida = st.selectbox("Selecione a Base", ["Barrolandia", "Corumbau", "Itaporanga", "Itanhém"])
-                    unidade_base = st.selectbox("Unidade", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
-                    
-                    if st.form_submit_button("Confirmar Ocupação"):
-                        df_bases = carregar_dados_bases()
-                        ocupado = False
-                        
-                        if not df_bases.empty:
-                            conflito = df_bases[(df_bases['base_nome'] == base_escolhida) & (df_bases['data_inicio'] == str(segunda_f))]
-                            if not conflito.empty:
-                                ocupado = True
-                                
-                        if ocupado:
-                            st.error(f"⚠️ A {base_escolhida} já está ocupada nesta semana! Escolha outra base ou semana.")
-                        else:
-                            try:
-                                supabase.table("bases_integradas").insert({
-                                    "base_nome": base_escolhida,
-                                    "unidade": unidade_base,
-                                    "data_inicio": str(segunda_f),
-                                    "data_fim": str(domingo_f),
-                                    "criado_por": f"{p_g_user} {nome_user}"
-                                }).execute()
-                                st.success("Base agendada com sucesso!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Erro ao agendar: {e}")
+            if submit_base:
+                dados_base = {
+                    "base_nome": base_escolhida,
+                    "unidade_ocupante": unidade_base,
+                    "data_inicio": segunda_f.isoformat(),
+                    "data_fim": domingo_f.isoformat()
+                }
+                supabase.table("gestao_bases").insert(dados_base).execute()
+                st.success(f"Sucesso! {base_escolhida} agendada para {unidade_base}.")
+                st.rerun()
 
-                # Histórico Geral logo abaixo
-                df_bases = carregar_dados_bases()
-                if not df_bases.empty:
-                    st.write("---")
-                    st.markdown("**📌 Histórico de Bases Cadastradas**")
-                    df_historico = df_bases[['base_nome', 'unidade', 'data_inicio', 'data_fim']].copy()
-                    df_historico.columns = ['Base', 'Unidade Ocupante', 'Início', 'Fim']
-                    df_historico = df_historico.sort_values(by="Início", ascending=False)
-                    st.dataframe(df_historico, use_container_width=True, hide_index=True)
+        st.divider()
+        st.subheader("📜 Histórico de Ocupação")
+        
+        # Busca dados do banco para exibir no Histórico
+        res_h = supabase.table("gestao_bases").select("*").order("data_inicio", desc=True).execute()
+        if res_h.data:
+            df_h = pd.DataFrame(res_h.data)
+            
+            # 2. FORMATAÇÃO DAS DATAS NA TABELA (Brasil: DD/MM/AAAA)
+            df_h['data_inicio'] = pd.to_datetime(df_h['data_inicio']).dt.strftime('%d/%m/%Y')
+            df_h['data_fim'] = pd.to_datetime(df_h['data_fim']).dt.strftime('%d/%m/%Y')
+            
+            # Ajuste de nomes das colunas para exibição amigável
+            df_h = df_h.rename(columns={
+                "base_nome": "Base",
+                "unidade_ocupante": "Unidade",
+                "data_inicio": "Início",
+                "data_fim": "Fim"
+            })
+            
+            st.dataframe(df_h[["Base", "Unidade", "Início", "Fim"]], use_container_width=True, hide_index=True)
+        else:
+            st.write("Nenhuma base agendada até o momento.")
 
-            with col_b2:
-                st.subheader("📅 Previsão de Ocupação")
+    with col_b2:
+        st.subheader("🔍 Previsão de Ocupação")
+        # Aqui você pode manter sua lógica de filtros ou visualização de mapa de ocupação
+        # conforme o código original.
                 dt_filtro = st.date_input("Ver a ocupação da semana referente ao dia:", datetime.date.today(), key="filtro_base")
                 segunda_filtro = dt_filtro - datetime.timedelta(days=dt_filtro.weekday())
                 domingo_filtro = segunda_filtro + datetime.timedelta(days=6)
