@@ -405,7 +405,7 @@ for i, titulo in enumerate(titulos_finais):
                 st.info(f"📆 Período: {segunda_f.strftime('%d/%m/%Y')} a {domingo_f.strftime('%d/%m/%Y')}")
                 
                 with st.form("form_base", clear_on_submit=True):
-                    base_escolhida = st.selectbox("Selecione a Base", ["Base 1", "Base 2", "Base 3", "Base 4"])
+                    base_escolhida = st.selectbox("Selecione a Base", ["Barrolandia", "Corumbau", "Itaporanga", "Itanhém"])
                     unidade_base = st.selectbox("Unidade", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
                     
                     if st.form_submit_button("Confirmar Ocupação"):
