@@ -450,8 +450,6 @@ for i, titulo in enumerate(titulos_finais):
                     df_historico['Início'] = pd.to_datetime(df_historico['Início']).dt.strftime('%d/%m/%Y')
                     df_historico['Fim'] = pd.to_datetime(df_historico['Fim']).dt.strftime('%d/%m/%Y')
                     
-                    # Como Início agora é string, precisamos ordenar antes de formatar, mas aqui já fizemos a cópia,
-                    # para simplificar vamos apenas renderizar
                     df_historico = df_historico.sort_values(by="Início", ascending=False)
                     st.dataframe(df_historico, use_container_width=True, hide_index=True)
 
@@ -523,7 +521,10 @@ for i, titulo in enumerate(titulos_finais):
                 res_u = supabase.table("lista_usuarios_admin").select("*").execute()
                 if res_u.data:
                     for user in res_u.data:
-                        with st.expander(f"👤 {user['nome_completo']} ({user['matricula']})"):
+                        # Buscamos a unidade, se não houver cadastro, mostramos que está sem unidade
+                        unidade_exibicao = user.get('unidade', 'Sem Unidade')
+                        
+                        with st.expander(f"👤 {user['nome_completo']} ({user['matricula']}) - {unidade_exibicao}"):
                             p_atual = buscar_permissoes(user['matricula'])
                             novas_p = st.multiselect("Abas Permitidas:", abas_possiveis, default=p_atual, key=f"p_{user['matricula']}")
                             
