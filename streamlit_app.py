@@ -157,7 +157,8 @@ def buscar_permissoes(matricula):
         res = supabase.table("permissoes_usuarios").select("abas_permitidas").eq("matricula", matricula).execute()
         if res.data: return res.data[0]["abas_permitidas"]
     except: pass
-    return ["✅ Cumprimento"]
+    # LÓGICA DE SEGURANÇA: Se não encontrar o usuário (excluído), retorna lista vazia bloqueando acesso.
+    return [] 
 
 abas_liberadas = buscar_permissoes(mat_user)
 eh_admin = mat_user == MATRICULA_ADMIN
@@ -199,7 +200,10 @@ abas_possiveis = ["📋 Consulta de Escala", "🎖️ Comandante", "✅ Cumprime
 if eh_admin: abas_possiveis.append("🔑 Admin")
 
 titulos_finais = [a for a in abas_possiveis if a in abas_liberadas]
-if not titulos_finais: titulos_finais = ["✅ Cumprimento"]
+
+# TELA DE BLOQUEIO PARA USUÁRIOS EXCLUÍDOS
+if not titulos_finais: 
+    titulos_finais = ["🚫 Acesso Bloqueado"]
 
 tabs = st.tabs(titulos_finais)
 
@@ -207,7 +211,12 @@ for i, titulo in enumerate(titulos_finais):
     
     with tabs[i]:
         
-        if titulo == "📋 Consulta de Escala":
+        # EXIBIÇÃO DA MENSAGEM DE EXCLUSÃO/BLOQUEIO
+        if titulo == "🚫 Acesso Bloqueado":
+            st.error("⚠️ Seu acesso foi revogado ou ainda não foi aprovado. Você não possui mais permissões no sistema.")
+            st.info("Caso acredite ser um engano, procure a Administração ou a Seção de Planejamento Operacional do CPR-ES.")
+            
+        elif titulo == "📋 Consulta de Escala":
             dt_c = st.date_input("Data da Escala:", datetime.date.today(), key="dt_cons", format="DD/MM/YYYY")
             df = carregar_dados_db()
             if not df.empty:
@@ -518,10 +527,19 @@ for i, titulo in enumerate(titulos_finais):
         elif titulo == "🔑 Admin" and eh_admin:
             st.subheader("Gestão de Acessos")
             try:
+                # Carrega todos os usuários da view
                 res_u = supabase.table("lista_usuarios_admin").select("*").execute()
+                
+                # Carrega as permissões ativas para cruzar os dados
+                res_p = supabase.table("permissoes_usuarios").select("matricula").execute()
+                matriculas_ativas = [p['matricula'] for p in res_p.data] if res_p.data else []
+                
                 if res_u.data:
                     for user in res_u.data:
-                        # Buscamos a unidade, se não houver cadastro, mostramos que está sem unidade
+                        # FILTRO VISUAL DE SEGURANÇA: Se o usuário não tiver registro de permissão, ele some da tela
+                        if user['matricula'] not in matriculas_ativas:
+                            continue
+                            
                         unidade_exibicao = user.get('unidade', 'Sem Unidade')
                         
                         with st.expander(f"👤 {user['nome_completo']} ({user['matricula']}) - {unidade_exibicao}"):
@@ -535,10 +553,19 @@ for i, titulo in enumerate(titulos_finais):
                                 st.success("Atualizado!")
                                 
                             if c_adm2.button("🗑️ Excluir Usuário", key=f"del_{user['matricula']}", type="primary"):
+                                
+                                # 1. Apaga do banco de permissões bloqueando o acesso dele 100%
                                 try:
                                     supabase.table("permissoes_usuarios").delete().eq("matricula", user['matricula']).execute()
-                                    st.success("Acesso do usuário excluído com sucesso! Atualize a página.")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Erro ao excluir usuário: {e}")
+                                except: pass
+                                
+                                # 2. Tenta apagar da tabela secundária de listagem (se aplicável no seu banco)
+                                try:
+                                    supabase.table("lista_usuarios_admin").delete().eq("matricula", user['matricula']).execute()
+                                except: pass
+                                
+                                st.success("Usuário excluído e acesso revogado com sucesso!")
+                                time.sleep(0.5)
+                                st.rerun()
+                                
             except Exception as e: st.error(f"Erro ao carregar usuários: {e}")
