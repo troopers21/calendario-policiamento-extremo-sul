@@ -232,6 +232,22 @@ for i, titulo in enumerate(titulos_finais):
                             colunas_para_exibir = ['data', 'municipio', 'unidade', 'viatura', 'hora_entrada', 'hora_saida', 'Situação', 'missao']
                             colunas_finais = [col for col in colunas_para_exibir if col in df_r.columns]
                             st.dataframe(df_r[colunas_finais], use_container_width=True, hide_index=True)
+            
+            # --- NOVO BLOCO: BASES INTEGRADAS NA ABA COMANDANTE ---
+            df_bases_cmt = carregar_dados_bases()
+            if not df_bases_cmt.empty:
+                with st.expander("🏠 Calendário de Bases Integradas"):
+                    # Ordena pelos dados mais recentes antes de formatar a data
+                    df_hist_cmt = df_bases_cmt.sort_values(by="data_inicio", ascending=False).copy()
+                    
+                    df_hist_cmt = df_hist_cmt[['base_nome', 'unidade', 'data_inicio', 'data_fim']]
+                    df_hist_cmt.columns = ['Base', 'Unidade Ocupante', 'Início', 'Fim']
+                    
+                    # Formata as datas para o padrão Brasileiro
+                    df_hist_cmt['Início'] = pd.to_datetime(df_hist_cmt['Início']).dt.strftime('%d/%m/%Y')
+                    df_hist_cmt['Fim'] = pd.to_datetime(df_hist_cmt['Fim']).dt.strftime('%d/%m/%Y')
+                    
+                    st.dataframe(df_hist_cmt, use_container_width=True, hide_index=True)
                             
         elif titulo == "✅ Cumprimento":
             df_c = carregar_dados_db().sort_values(by="data", ascending=False)
