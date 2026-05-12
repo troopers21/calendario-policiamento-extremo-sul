@@ -8,7 +8,8 @@ import extra_streamlit_components as stx
 # --- 1. CONFIGURAÇÕES E CONEXÃO ---
 
 CHAVE_GESTAO = "comando2026"
-MATRICULA_ADMIN = "30455232"
+# LISTA DE ADMINISTRADORES ATUALIZADA COM A NOVA MATRÍCULA
+MATRICULAS_ADMIN = ["30455232", "30505197"]
 url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
@@ -161,7 +162,9 @@ def buscar_permissoes(matricula):
     return [] 
 
 abas_liberadas = buscar_permissoes(mat_user)
-eh_admin = mat_user == MATRICULA_ADMIN
+
+# VERIFICAÇÃO ATUALIZADA: Permite que qualquer matrícula da lista seja admin
+eh_admin = mat_user in MATRICULAS_ADMIN
 
 def carregar_dados_db():
     try:
