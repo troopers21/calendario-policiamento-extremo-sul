@@ -158,12 +158,10 @@ def buscar_permissoes(matricula):
         res = supabase.table("permissoes_usuarios").select("abas_permitidas").eq("matricula", matricula).execute()
         if res.data: return res.data[0]["abas_permitidas"]
     except: pass
-    # LÓGICA DE SEGURANÇA: Se não encontrar o usuário (excluído), retorna lista vazia bloqueando acesso.
     return [] 
 
 abas_liberadas = buscar_permissoes(mat_user)
 
-# VERIFICAÇÃO ATUALIZADA: Permite que qualquer matrícula da lista seja admin
 eh_admin = mat_user in MATRICULAS_ADMIN
 
 def carregar_dados_db():
@@ -204,7 +202,6 @@ if eh_admin: abas_possiveis.append("🔑 Admin")
 
 titulos_finais = [a for a in abas_possiveis if a in abas_liberadas]
 
-# TELA DE BLOQUEIO PARA USUÁRIOS EXCLUÍDOS
 if not titulos_finais: 
     titulos_finais = ["🚫 Acesso Bloqueado"]
 
@@ -214,7 +211,6 @@ for i, titulo in enumerate(titulos_finais):
     
     with tabs[i]:
         
-        # EXIBIÇÃO DA MENSAGEM DE EXCLUSÃO/BLOQUEIO
         if titulo == "🚫 Acesso Bloqueado":
             st.error("⚠️ Seu acesso foi revogado ou ainda não foi aprovado. Você não possui mais permissões no sistema.")
             st.info("Caso acredite ser um engano, procure a Administração ou a Seção de Planejamento Operacional do CPR-ES.")
@@ -238,24 +234,19 @@ for i, titulo in enumerate(titulos_finais):
                     if not df_r.empty:
                         with st.expander(f"📍 {r}"):
                             df_r['Situação'] = df_r['cumprido'].map({True: "✅ OK", False: "⚠️ Aberto"})
-                            # Formatação da data para o padrão Brasileiro na exibição
                             df_r['data'] = pd.to_datetime(df_r['data']).dt.strftime('%d/%m/%Y')
                             
                             colunas_para_exibir = ['data', 'municipio', 'unidade', 'viatura', 'hora_entrada', 'hora_saida', 'Situação', 'missao']
                             colunas_finais = [col for col in colunas_para_exibir if col in df_r.columns]
                             st.dataframe(df_r[colunas_finais], use_container_width=True, hide_index=True)
             
-            # --- NOVO BLOCO: BASES INTEGRADAS NA ABA COMANDANTE ---
             df_bases_cmt = carregar_dados_bases()
             if not df_bases_cmt.empty:
                 with st.expander("🏠 Calendário de Bases Integradas"):
-                    # Ordena pelos dados mais recentes antes de formatar a data
                     df_hist_cmt = df_bases_cmt.sort_values(by="data_inicio", ascending=False).copy()
-                    
                     df_hist_cmt = df_hist_cmt[['base_nome', 'unidade', 'data_inicio', 'data_fim']]
                     df_hist_cmt.columns = ['Base', 'Unidade Ocupante', 'Início', 'Fim']
                     
-                    # Formata as datas para o padrão Brasileiro
                     df_hist_cmt['Início'] = pd.to_datetime(df_hist_cmt['Início']).dt.strftime('%d/%m/%Y')
                     df_hist_cmt['Fim'] = pd.to_datetime(df_hist_cmt['Fim']).dt.strftime('%d/%m/%Y')
                     
@@ -264,7 +255,6 @@ for i, titulo in enumerate(titulos_finais):
         elif titulo == "✅ Cumprimento":
             df_c = carregar_dados_db().sort_values(by="data", ascending=False)
             if not df_c.empty:
-                # Cria a string de exibição com a data no formato Brasileiro
                 df_c['data_br'] = pd.to_datetime(df_c['data']).dt.strftime('%d/%m/%Y')
                 df_c['sel'] = df_c['data_br'] + " | " + df_c['municipio'] + " | " + df_c['unidade']
                 
@@ -383,7 +373,6 @@ for i, titulo in enumerate(titulos_finais):
                 st.subheader("🗑️ Excluir Registro")
                 df_del = carregar_dados_db().sort_values(by='data', ascending=False)
                 if not df_del.empty:
-                    # Aplica a data BR na string do selectbox de exclusão
                     df_del['data_br'] = pd.to_datetime(df_del['data']).dt.strftime('%d/%m/%Y')
                     df_del['txt'] = df_del['data_br'] + " | " + df_del['municipio'] + " | " + df_del['unidade']
                     
@@ -422,7 +411,6 @@ for i, titulo in enumerate(titulos_finais):
                 st.info(f"📆 Período: {segunda_f.strftime('%d/%m/%Y')} a {domingo_f.strftime('%d/%m/%Y')}")
                 
                 with st.form("form_base", clear_on_submit=True):
-                    # Novas bases renomeadas conforme solicitado
                     base_escolhida = st.selectbox("Selecione a Base", ["Barrolandia", "Corumbau", "Itaporanga", "Itanhém"])
                     unidade_base = st.selectbox("Unidade", ["Operação Pegasus", "CIPE-MA", "CIPT-ES", "CIPPA/PS", "CIPRv-Ita"])
                     
@@ -457,12 +445,9 @@ for i, titulo in enumerate(titulos_finais):
                     st.markdown("**📌 Histórico de Bases Cadastradas**")
                     df_historico = df_bases[['base_nome', 'unidade', 'data_inicio', 'data_fim']].copy()
                     
-                    # CORREÇÃO DA CLASSIFICAÇÃO: Realiza a ordenação cronológica decrescente pela coluna de data nativa ('data_inicio') antes da conversão visual para string
                     df_historico = df_historico.sort_values(by="data_inicio", ascending=False)
-                    
                     df_historico.columns = ['Base', 'Unidade Ocupante', 'Início', 'Fim']
                     
-                    # Formata datas para o Histórico de Bases após a ordenação garantida
                     df_historico['Início'] = pd.to_datetime(df_historico['Início']).dt.strftime('%d/%m/%Y')
                     df_historico['Fim'] = pd.to_datetime(df_historico['Fim']).dt.strftime('%d/%m/%Y')
                     
@@ -484,7 +469,6 @@ for i, titulo in enumerate(titulos_finais):
                         df_semana = df_semana[['base_nome', 'unidade', 'data_inicio', 'data_fim']]
                         df_semana.columns = ['Base', 'Unidade Ocupante', 'Início', 'Fim']
                         
-                        # Formata datas para a Previsão
                         df_semana['Início'] = pd.to_datetime(df_semana['Início']).dt.strftime('%d/%m/%Y')
                         df_semana['Fim'] = pd.to_datetime(df_semana['Fim']).dt.strftime('%d/%m/%Y')
                         
@@ -502,7 +486,6 @@ for i, titulo in enumerate(titulos_finais):
                 if not df_del_base.empty:
                     df_del_base = df_del_base.sort_values(by='data_inicio', ascending=False)
                     
-                    # Aplica a data BR na string de exclusão da Base
                     df_del_base['inicio_br'] = pd.to_datetime(df_del_base['data_inicio']).dt.strftime('%d/%m/%Y')
                     df_del_base['fim_br'] = pd.to_datetime(df_del_base['data_fim']).dt.strftime('%d/%m/%Y')
                     df_del_base['txt'] = df_del_base['inicio_br'] + " a " + df_del_base['fim_br'] + " | " + df_del_base['base_nome'] + " | " + df_del_base['unidade']
@@ -529,6 +512,30 @@ for i, titulo in enumerate(titulos_finais):
                                 st.rerun()
                             except Exception as e: 
                                 st.error(f"Erro ao excluir o registro da base: {e}")
+                                
+                # --- NOVO BLOCO: MAPA DE LOCALIZAÇÃO ---
+                st.write("---")
+                st.subheader("🗺️ Localização da Base")
+                
+                # Dicionário com coordenadas aproximadas (Latitude, Longitude) das bases do Extremo Sul
+                coords_bases = {
+                    "Barrolandia": [-16.145, -39.191],
+                    "Corumbau": [-16.852, -39.144],
+                    "Itaporanga": [-16.634, -39.167],
+                    "Itanhém": [-17.166, -40.330]
+                }
+                
+                # Menu para selecionar qual base visualizar (já vem com Barrolandia por padrão)
+                base_mapa = st.selectbox("Selecione a base para exibir no mapa:", list(coords_bases.keys()), index=0)
+                
+                # Converte as coordenadas para o formato que o Streamlit exige
+                df_mapa = pd.DataFrame({
+                    "lat": [coords_bases[base_mapa][0]],
+                    "lon": [coords_bases[base_mapa][1]]
+                })
+                
+                # Exibe o mapa com zoom ajustado
+                st.map(df_mapa, zoom=12)
 
         elif titulo == "🔑 Admin" and eh_admin:
             st.subheader("Gestão de Acessos")
