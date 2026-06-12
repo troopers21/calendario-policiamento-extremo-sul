@@ -456,13 +456,16 @@ for i, titulo in enumerate(titulos_finais):
                     st.write("---")
                     st.markdown("**📌 Histórico de Bases Cadastradas**")
                     df_historico = df_bases[['base_nome', 'unidade', 'data_inicio', 'data_fim']].copy()
+                    
+                    # CORREÇÃO DA CLASSIFICAÇÃO: Realiza a ordenação cronológica decrescente pela coluna de data nativa ('data_inicio') antes da conversão visual para string
+                    df_historico = df_historico.sort_values(by="data_inicio", ascending=False)
+                    
                     df_historico.columns = ['Base', 'Unidade Ocupante', 'Início', 'Fim']
                     
-                    # Formata datas para o Histórico de Bases
+                    # Formata datas para o Histórico de Bases após a ordenação garantida
                     df_historico['Início'] = pd.to_datetime(df_historico['Início']).dt.strftime('%d/%m/%Y')
                     df_historico['Fim'] = pd.to_datetime(df_historico['Fim']).dt.strftime('%d/%m/%Y')
                     
-                    df_historico = df_historico.sort_values(by="Início", ascending=False)
                     st.dataframe(df_historico, use_container_width=True, hide_index=True)
 
             with col_b2:
